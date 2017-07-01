@@ -1,0 +1,32 @@
+[version]
+Signature="$WINDOWS NT$"
+Class=MEDIA
+ClassGUID="{4d36e96c-e325-11ce-bfc1-08002be10318}"
+Provider=Unknown
+[Manufacturer]
+Unknown=OldDrvs
+[OldDrvs]
+%fb01emu%=fb01emu
+[mt32emu.NT]
+DriverVer = 1/1/1998, 4.0.0.0
+AddReg=fb01emu.AddReg
+CopyFiles=fb01emu.CopyFiles.User,fb01emu.CopyFiles.Kern
+Reboot
+[fb01emu.NT.Services]
+AddService=,0x2
+[fb01emu.AddReg]
+HKR,Drivers,SubClasses,,"MIDI"
+HKR,"Drivers\MIDI\fb01emu.dll", Driver,,fb01emu.dll
+HKR,"Drivers\MIDI\fb01emu.dll", Description,,%fb01emu%
+[mt32emu.CopyFiles.User]
+fb01emu.dll
+[mt32emu.CopyFiles.Kern]
+[DestinationDirs]
+fb01emu.CopyFiles.User = 11
+fb01emu.CopyFiles.Kern = 12
+[SourceDisksNames]
+1 = "FB-01 Synth Emulator Files","",1
+[SourceDisksFiles]
+fb01emu.dll=1
+[Strings]
+fb01emu="FB-01 Synth Emulator"
