@@ -519,11 +519,110 @@ static int fb01_exclusive( MidiEvent* ev )
 	if ( ev->ex_buf[1] == 0x75 ) { /* Sub-status */
 		// The following SysEx messages can be recognized by Sub-status 75H as third byte in the SysEx message:
 		// A1, A2, A3, A4, B1, B3, B4, B5, B6, B7, B8, C2, C3, C4, C5, C6, E1
+		if (ev->ex_buf[2] != 0x70)
+		{
+			switch (ev->ex_buf[3] & 0xF8)
+			{
+			case 0x18:
+				switch (ev->ex_buf[4] & 0x40)
+				{
+				case 0x00:
+					// A1: F0 43 75 <0000ssss> <00011iii> <00pppppp> <0ddddddd> F7
+					break;
+				case 0x40:
+					// A2: F0 43 75 <0000ssss> <00011iii> <01pppppp> <0000dddd> <0000dddd> F7
+					break;
+				}
+				break;
+			case 0x28:
+				switch (ev->ex_buf[4])
+				{
+				case 0x40:
+					// A3: F0 43 75 <0000ssss> <00101iii> 40 00 F7
+					break;
+				case 0x00:
+					// A4: F0 43 75 <0000ssss> <00101iii> 00 <00dddddd> F7
+					break;
+				}
+				break;
+			case 0x10:
+				// B1: F0 43 75 <0000ssss> 10 <0ppppppp> <0ddddddd> F7
+				break;
+			case 0x20:
+				switch (ev->ex_buf[4])
+				{
+				case 0x00:
+					// B3: F0 43 75 <0000ssss> 20 00 <00000xxx> F7
+					break;
+				case 0x01:
+					// B4: F0 43 75 <0000ssss> 20 01 00 F7 (NB: 00 and 01 reversed in Service Manual?)
+					break;
+				case 0x02:
+					// B5: F0 43 75 <0000ssss> 20 02 <000xxxxx> F7
+					break;
+				case 0x03:
+					// B6: F0 43 75 <0000ssss> 20 03 00 F7
+					break;
+				case 0x04:
+					// B7: F0 43 75 <0000ssss> 20 04 00 F7
+					break;
+				case 0x40:
+					// B8: F0 43 75 <0000ssss> 20 40 <000ddddd> F7
+					break;
+				}
+				break;
+			case 0xC0:
+				// C2: F0 43 75 <0000ssss> 0C 00 00 <00000xxx> 20 10 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> 10 40 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+				break;
+
+			case 0x00:
+				switch (ev->ex_buf[4])
+				{
+				case 0x01:
+					// C3: F0 43 75 <0000ssss> 00 01 00 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+					break;
+				case 0x02:
+					// C4: F0 43 75 <0000ssss> 00 02 <000xxxxx> 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+					break;
+				case 0x03:
+					// C5: F0 43 75 <0000ssss> 00 03 00 14 00 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+					break;
+				}
+				break;
+			case 0x08:
+				// C6: F0 43 75 <0000ssss> <00001iii> 00 00 01 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+				break;
+			}
+		}
+		else
+		{
+			// E1: F0 43 75 70 <0eeeeeee> ... <0eeeeeee> F7
+		}
 	}
 	else
 	{
 		// The following SysEx messages do not have 75H as third byte:
 		// B2, C1, D1, D2
+		switch (ev->ex_buf[2] & 0xF0)
+		{
+		case 0x20:
+			// B2: F0 43 <0010ssss> 0C F7
+			break;
+		case 0x00:
+			// C1: F0 43 <0000ssss> 0C 20 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> 10 40 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+			break;
+		case 0x01:
+			switch (ev->ex_buf[3] & 0x40)
+			{
+			case 0x00:
+				// D1: F0 43 <0001nnnn> 15 <00pppppp> <0ddddddd> F7
+				break;
+			case 0x40:
+				// D2: F0 43 <0001nnnn> 15 <01pppppp> <0000dddd> <0000dddd> F7
+				break;
+			}
+			break;
+		}
 	}
 
 	return 0;
