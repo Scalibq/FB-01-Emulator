@@ -422,12 +422,125 @@ static int control_change( MidiEvent *ev ) {
 
 /* ------------------------------------------------------------------- */
 
+static int fb01_exclusive( MidiEvent* ev )
+{
+	/*
+	SysEx Messages (see Yamaha FB-01 Service Manual page 12):
+	A: Instrument message
+	1) Parameter Change (1 byte) by System Channel + Instrument Number
+		F0 43 75 <0000ssss> <00011iii> <00pppppp> <0ddddddd> F7
+		s = system No.
+		i = instrument No.
+		d = data
+	2) Parameter Change (2 byte) by System Channel + Instrument Number
+		F0 43 75 <0000ssss> <00011iii> <01pppppp> <0000dddd> <0000dddd> F7
+		s = system No.
+		i = instrument No.
+		d = data
+	3) Voice bulk data dump
+		F0 43 75 <0000ssss> <00101iii> 40 00 F7
+		s = system No.
+		i = instrument No.
+	4) Store into voice RAM
+		F0 43 75 <0000ssss> <00101iii> 00 <00dddddd> F7
+		s = system No.
+		i = instrument No.
+		d = voice No.
+
+	(not in Service Manual, only in user manual)
+	5) Parameter Change (1 byte) by MIDI channel
+		F0 43 <0001nnnn> 15 <000ppppp> <0ddddddd> F7
+	6) Parameter Change (2 byte) by MIDI channel
+		F0 43 <0001nnnn> 15 <01pppppp> <0000yyyy> <0000xxxx> F7
+
+	B: System message
+	1) System parameter change
+		F0 43 75 <0000ssss> 10 <0ppppppp> <0ddddddd> F7
+		s = system No.
+		p = parameter No.
+		d = data
+	2) Voice RAM 1 bulk data dump
+		F0 43 <0010ssss> 0C F7
+	3) Each voice bank bulk data dump
+		F0 43 75 <0000ssss> 20 00 <00000xxx> F7
+	4) Current configuration data dump
+		F0 43 75 <0000ssss> 20 01 00 F7 (NB: 00 and 01 reversed in Service Manual?)
+	5) Configuration data dump
+		F0 43 75 <0000ssss> 20 02 <000xxxxx> F7
+	6) 16 configuration data dump
+		F0 43 75 <0000ssss> 20 03 00 F7
+	7) Unit ID number dump
+		F0 43 75 <0000ssss> 20 04 00 F7
+	8) Configuration data store
+		F0 43 75 <0000ssss> 20 40 <000ddddd> F7
+
+	Other system messages
+	C: Bulk data
+	1) 48 voice bulk data (voice RAM 1)
+		F0 43 <0000ssss> 0C 20 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> 10 40 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+	2) 48 voices bulk data (to specific bank)
+		F0 43 75 <0000ssss> 0C 00 00 <00000xxx> 20 10 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> 10 40 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+	3) Current configuration
+		F0 43 75 <0000ssss> 00 01 00 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+	4) Configuration memory
+		F0 43 75 <0000ssss> 00 02 <000xxxxx> 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+	5) 16 configuration memory
+		F0 43 75 <0000ssss> 00 03 00 14 00 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+	6) 1 voice bulk data
+		F0 43 75 <0000ssss> <00001iii> 00 00 01 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+
+	D: Channel message
+	1) MIDI channel specification (1 byte)
+		F0 43 <0001nnnn> 15 <00pppppp> <0ddddddd> F7
+	2) MIDI channel specification
+		F0 43 <0001nnnn> 15 <01pppppp> <0000dddd> <0000dddd> F7
+
+	E: Event list
+	1) Event list
+		F0 43 75 70 <0eeeeeee> ... <0eeeeeee> F7
+
+	Event data embedded in event list (not separate SysEx messages):
+	1) Key OFF
+		<0000nnnn> <0kkkkkkk> <0fffffff>
+	2) Key ON/OFF
+		<0001nnnn> <0kkkkkkk> <0fffffff> <0vvvvvvv>
+	3) Key ON/OFF (with duration)
+		<0010nnnn> <0kkkkkkk> <0fffffff> <0vvvvvvv> <0ddddddd> <0ddddddd>
+	4) Parameter change (1 byte)
+		<0111nnnn> <00pppppp> <0ddddddd>
+	5) Parameter change (2 byte)
+		<0111nnnn> <01pppppp> <0000dddd> <0000dddd> (NB: mistakenly listed as <00pppppp> in Service and User Manuals?)
+
+	(not in Service Manual, only in user manual)
+	6) Control Change
+		<0011nnnn> <0ccccccc> <0vvvvvvv>
+	7) Program Change
+		<0100nnnn> <0ppppppp>
+	8) After Touch
+		<0101nnnn> <0vvvvvvv>
+	9) Pitch Bend
+		<0110nnnn> <0yyyyyyy> <0xxxxxxx>
+	*/
+
+	if ( ev->ex_buf[1] == 0x75 ) { /* Sub-status */
+		
+	}
+	else
+	{
+	}
+
+	return 0;
+}
+
 static int system_exclusive( MidiEvent *ev ) {
 
   int i,j;
   int d;
 
-  if ( ev->ex_buf[0] == 0x7e ) { /* Universal non-realtime */
+  if ( ev->ex_buf[0] == 0x43 ) { /* Yamaha FB-01 exclusive */
+	  return fb01_exclusive( ev );
+  }
+  else if ( ev->ex_buf[0] == 0x7e ) { /* Universal non-realtime */
 	if ( ev->ex_buf[2] == 0x09 && ev->ex_buf[3] == 0x01 ) {
 	  /* GM-MODE on */
 	  reset_ym2151();
