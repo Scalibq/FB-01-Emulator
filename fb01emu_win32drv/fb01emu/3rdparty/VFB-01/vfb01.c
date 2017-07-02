@@ -447,12 +447,6 @@ static int fb01_exclusive( MidiEvent* ev )
 		i = instrument No.
 		d = voice No.
 
-	(not in Service Manual, only in user manual)
-	5) Parameter Change (1 byte) by MIDI channel
-		F0 43 <0001nnnn> 15 <000ppppp> <0ddddddd> F7
-	6) Parameter Change (2 byte) by MIDI channel
-		F0 43 <0001nnnn> 15 <01pppppp> <0000yyyy> <0000xxxx> F7
-
 	B: System message
 	1) System parameter change
 		F0 43 75 <0000ssss> 10 <0ppppppp> <0ddddddd> F7
@@ -490,9 +484,9 @@ static int fb01_exclusive( MidiEvent* ev )
 		F0 43 75 <0000ssss> <00001iii> 00 00 01 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
 
 	D: Channel message
-	1) MIDI channel specification (1 byte)
+	1) Parameter Change (1 byte) by MIDI channel specification
 		F0 43 <0001nnnn> 15 <00pppppp> <0ddddddd> F7
-	2) MIDI channel specification
+	2) Parameter Change (2 byte) by MIDI channel specification
 		F0 43 <0001nnnn> 15 <01pppppp> <0000dddd> <0000dddd> F7
 
 	E: Event list
@@ -523,10 +517,13 @@ static int fb01_exclusive( MidiEvent* ev )
 	*/
 
 	if ( ev->ex_buf[1] == 0x75 ) { /* Sub-status */
-		
+		// The following SysEx messages can be recognized by Sub-status 75H as third byte in the SysEx message:
+		// A1, A2, A3, A4, B1, B3, B4, B5, B6, B7, B8, C2, C3, C4, C5, C6, E1
 	}
 	else
 	{
+		// The following SysEx messages do not have 75H as third byte:
+		// B2, C1, D1, D2
 	}
 
 	return 0;
