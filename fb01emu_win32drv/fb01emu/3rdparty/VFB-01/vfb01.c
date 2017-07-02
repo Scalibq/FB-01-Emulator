@@ -108,8 +108,6 @@ void vfb01_doMidiEvent( VFB_DATA *vfb, MidiEvent* e ) {
   int i;
 
 	if ( e->ch >= vfb->units ) return;
-	if ( vfb->is_ignore_ch10 == FLAG_TRUE &&
-	 e->ch == 9 ) return;
 
 	switch ( e->type ) {
 	case MIDI_NOTEOFF:

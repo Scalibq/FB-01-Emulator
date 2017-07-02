@@ -15,8 +15,6 @@
 #define PCM8_MAX_NOTE        16
 #define PCM8_MAX_VOLUME      127
 #define PCM8_MASTER_PCM_RATE 44100      /* Hz */
-#define PCM8_NUM_OF_BUFFERS  14         /* for SNDCTL_DSP_SETFRAGMENT */
-#define PCM8_SYSTEM_RATE     10         /* milli-second */
 
 /* ------------------------------------------------------------------ */
 

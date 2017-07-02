@@ -113,17 +113,9 @@ bool Synth::open() {
 	}
 
 	verbose = FLAG_FALSE;
-	midi_device = MIDI_DEVICE_NAME;
-	dsp_device = DSP_DEVICE_NAME;
 	voice_parameter_file = VOICE_PARAMETER_NAME;
-	is_use_fragment = FLAG_TRUE;
-	is_ignore_ch10 = FLAG_FALSE;
 
-	vfb->dsp_device = dsp_device;
-	vfb->midi_device = midi_device;
-	vfb->is_use_fragment = is_use_fragment;
 	vfb->is_normal_exit = FLAG_TRUE;
-	vfb->is_ignore_ch10 = is_ignore_ch10;
 	vfb->verbose = verbose;
 
 	vfb->voice_parameter_file = voice_parameter_file;

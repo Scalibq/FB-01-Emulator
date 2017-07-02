@@ -27,14 +27,6 @@
 #define VFB_MAX_CHANNEL_NUMBER        16 /* up to 16 ( <= heavy load ) */
 #define VFB_INITIAL_VOICE_NUMBER      0
 
-#ifndef MIDI_DEVICE_NAME
-# define MIDI_DEVICE_NAME "/dev/midi"
-#endif
-
-#ifndef DSP_DEVICE_NAME
-# define DSP_DEVICE_NAME "/dev/dsp"
-#endif
-
 #ifndef VOICE_PARAMETER_NAME
 # define VOICE_PARAMETER_NAME "tone_sample.cfg"
 #endif
@@ -114,12 +106,7 @@ typedef struct _VFB_DATA {
 
   int is_normal_exit;
 
-  int is_use_fragment;
-  int is_ignore_ch10;
   int verbose;
-
-  char *dsp_device;
-  char *midi_device;
 
   int  dsp_speed;
 

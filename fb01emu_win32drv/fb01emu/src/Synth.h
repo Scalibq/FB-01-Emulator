@@ -33,17 +33,11 @@ extern "C"
 namespace MT32Emu {
 
 class MidiEventQueue;
-struct PCMWaveEntry;
 
-static char *command_name = NULL;
 static int   verbose = FLAG_FALSE;
-static char *dsp_device = NULL;
-static char *midi_device = NULL;
 static int   master_volume = 127;
 static int   units = VFB_MAX_CHANNEL_NUMBER;
 static char *voice_parameter_file;
-static int   is_use_fragment = FLAG_TRUE;
-static int   is_ignore_ch10 = FLAG_FALSE;
 
 static VFB_DATA *vfb = NULL;
 
