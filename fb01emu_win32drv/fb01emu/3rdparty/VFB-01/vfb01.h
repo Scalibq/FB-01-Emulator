@@ -22,6 +22,8 @@
 #ifndef _VFB01_H_
 #define _VFB01_H_
 
+#include <stdint.h>
+
 /* ------------------------------------------------------------------- */
 
 #define VFB_MAX_CHANNEL_NUMBER        16 /* up to 16 ( <= heavy load ) */
@@ -50,10 +52,10 @@
 /* ------------------------------------------------------------------- */
 
 typedef struct _MidiEvent {
-  int type;
-  int ch;
-  int a,b;
-  int ex_buf[SYSEX_BUF_SIZE];
+  uint8_t type;
+  uint8_t ch;
+  uint8_t a,b;
+  uint8_t ex_buf[SYSEX_BUF_SIZE];
 } MidiEvent;
 
 typedef struct _VOICE_DATA {
