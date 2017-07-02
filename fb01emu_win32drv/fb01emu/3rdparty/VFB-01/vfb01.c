@@ -37,6 +37,8 @@
 //#include <unistd.h>
 #include <sys/stat.h>
 
+#include <Windows.h>
+
 #ifdef _POSIX_PRIORITY_SCHEDULING
 # include <sched.h>
 #endif
@@ -422,6 +424,101 @@ static int control_change( MidiEvent *ev ) {
 
 /* ------------------------------------------------------------------- */
 
+void param_change_instrument(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Parameter Change\n");
+}
+
+void voice_bulk_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Voice bulk data dump\n");
+}
+
+void store_in_voice_RAM(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Store into voice RAM\n");
+}
+
+void system_param_change(MidiEvent* ev)
+{
+	OutputDebugString("FB01: System parameter change\n");
+}
+
+void voice_RAM1_bulk_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Voice RAM 1 bulk data dump\n");
+}
+
+void each_voice_bulk_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Each voice bank bulk data dump\n");
+}
+
+void current_config_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Current configuration data dump\n");
+}
+
+void config_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Configuration data dump\n");
+}
+
+void each_config_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: 16 configuration data dump\n");
+}
+
+void unit_ID_number_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Unit ID number dump\n");
+}
+
+void config_data_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Configuration data store\n");
+}
+
+void voice_RAM1_bulk_data_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: 48 voice bulk data (voice RAM1)\n");
+}
+
+void voice_bulk_data_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: 48 voices bulk data (to specific bank)\n");
+}
+
+void current_config_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Current configuration\n");
+}
+
+void config_memory_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Configuration memory\n");
+}
+
+void config_16_memory_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: 16 configuration memory\n");
+}
+
+void single_voice_bulk_data_store(MidiEvent* ev)
+{
+	OutputDebugString("FB01: 1 voice bulk data\n");
+}
+
+void param_change_channel(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Parameter change by MIDI channel specification\n");
+}
+
+void event_list(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Event list\n");
+}
+
 static int fb01_exclusive( MidiEvent* ev )
 {
 	/*
@@ -516,7 +613,7 @@ static int fb01_exclusive( MidiEvent* ev )
 		<0110nnnn> <0yyyyyyy> <0xxxxxxx>
 	*/
 
-	if ( ev->ex_buf[1] == 0x75 ) { /* Sub-status */
+	if (ev->ex_buf[1] == 0x75) { /* Sub-status */
 		// The following SysEx messages can be recognized by Sub-status 75H as third byte in the SysEx message:
 		// A1, A2, A3, A4, B1, B3, B4, B5, B6, B7, B8, C2, C3, C4, C5, C6, E1
 		if (ev->ex_buf[2] != 0x70)
@@ -528,9 +625,11 @@ static int fb01_exclusive( MidiEvent* ev )
 				{
 				case 0x00:
 					// A1: F0 43 75 <0000ssss> <00011iii> <00pppppp> <0ddddddd> F7
+					param_change_instrument(ev);
 					break;
 				case 0x40:
 					// A2: F0 43 75 <0000ssss> <00011iii> <01pppppp> <0000dddd> <0000dddd> F7
+					param_change_instrument(ev);
 					break;
 				}
 				break;
@@ -539,40 +638,50 @@ static int fb01_exclusive( MidiEvent* ev )
 				{
 				case 0x40:
 					// A3: F0 43 75 <0000ssss> <00101iii> 40 00 F7
+					voice_bulk_data_dump(ev);
 					break;
 				case 0x00:
 					// A4: F0 43 75 <0000ssss> <00101iii> 00 <00dddddd> F7
+					store_in_voice_RAM(ev);
 					break;
 				}
 				break;
 			case 0x10:
 				// B1: F0 43 75 <0000ssss> 10 <0ppppppp> <0ddddddd> F7
+				system_param_change(ev);
 				break;
 			case 0x20:
 				switch (ev->ex_buf[4])
 				{
 				case 0x00:
 					// B3: F0 43 75 <0000ssss> 20 00 <00000xxx> F7
+					each_voice_bulk_data_dump(ev);
 					break;
 				case 0x01:
 					// B4: F0 43 75 <0000ssss> 20 01 00 F7 (NB: 00 and 01 reversed in Service Manual?)
+					current_config_data_dump(ev);
 					break;
 				case 0x02:
 					// B5: F0 43 75 <0000ssss> 20 02 <000xxxxx> F7
+					config_data_dump(ev);
 					break;
 				case 0x03:
 					// B6: F0 43 75 <0000ssss> 20 03 00 F7
+					each_config_data_dump(ev);
 					break;
 				case 0x04:
 					// B7: F0 43 75 <0000ssss> 20 04 00 F7
+					unit_ID_number_dump(ev);
 					break;
 				case 0x40:
 					// B8: F0 43 75 <0000ssss> 20 40 <000ddddd> F7
+					config_data_store(ev);
 					break;
 				}
 				break;
 			case 0xC0:
 				// C2: F0 43 75 <0000ssss> 0C 00 00 <00000xxx> 20 10 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> 10 40 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+				voice_bulk_data_store(ev);
 				break;
 
 			case 0x00:
@@ -580,23 +689,28 @@ static int fb01_exclusive( MidiEvent* ev )
 				{
 				case 0x01:
 					// C3: F0 43 75 <0000ssss> 00 01 00 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+					current_config_store(ev);
 					break;
 				case 0x02:
 					// C4: F0 43 75 <0000ssss> 00 02 <000xxxxx> 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+					config_memory_store(ev);
 					break;
 				case 0x03:
 					// C5: F0 43 75 <0000ssss> 00 03 00 14 00 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
+					config_16_memory_store(ev);
 					break;
 				}
 				break;
 			case 0x08:
 				// C6: F0 43 75 <0000ssss> <00001iii> 00 00 01 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+				single_voice_bulk_data_store(ev);
 				break;
 			}
 		}
 		else
 		{
 			// E1: F0 43 75 70 <0eeeeeee> ... <0eeeeeee> F7
+			event_list(ev);
 		}
 	}
 	else
@@ -607,18 +721,22 @@ static int fb01_exclusive( MidiEvent* ev )
 		{
 		case 0x20:
 			// B2: F0 43 <0010ssss> 0C F7
+			voice_RAM1_bulk_data_dump(ev);
 			break;
 		case 0x00:
 			// C1: F0 43 <0000ssss> 0C 20 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> 10 40 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+			voice_RAM1_bulk_data_store(ev);
 			break;
 		case 0x01:
 			switch (ev->ex_buf[3] & 0x40)
 			{
 			case 0x00:
 				// D1: F0 43 <0001nnnn> 15 <00pppppp> <0ddddddd> F7
+				param_change_channel(ev);
 				break;
 			case 0x40:
 				// D2: F0 43 <0001nnnn> 15 <01pppppp> <0000dddd> <0000dddd> F7
+				param_change_channel(ev);
 				break;
 			}
 			break;
