@@ -105,7 +105,7 @@
 #define SMF_CTRL_OMNI_MODE_OFF      0x7c
 #define SMF_CTRL_OMNI_MODE_ON       0x7d
 #define SMF_CTRL_MONO_MODE_ON       0x7e
-#define SMF_CTRL_POLI_MODE_ON       0x7f
+#define SMF_CTRL_POLY_MODE_ON       0x7f
 
 /* functions */
 

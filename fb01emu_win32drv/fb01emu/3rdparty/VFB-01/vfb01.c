@@ -409,7 +409,7 @@ static int control_change( MidiEvent *ev ) {
   case SMF_CTRL_MONO_MODE_ON:
 	break;
 
-  case SMF_CTRL_POLI_MODE_ON:
+  case SMF_CTRL_POLY_MODE_ON:
 	break;
 
 	
