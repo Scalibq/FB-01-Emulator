@@ -552,3 +552,40 @@ static int reg_read( int ch, int adr ) {
 
   return opm[0].ym2151_register_map[adr];
 }
+
+int setup_configuration(VFB_DATA *vfb) {
+	int i;
+
+	vfb->active_config.key_receive_mode = VFB_KM_ALL;
+	vfb->active_config.combine = 1;
+
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	{
+		vfb->active_config.instruments[i].detune = 0;
+		vfb->active_config.instruments[i].input_controller = 0;
+		vfb->active_config.instruments[i].key_low_limit = 0;
+		vfb->active_config.instruments[i].key_high_limit = 127;
+		vfb->active_config.instruments[i].LFO_enable = 1;
+		vfb->active_config.instruments[i].midi_channel = i;
+		vfb->active_config.instruments[i].mono_poly = 1;
+		vfb->active_config.instruments[i].note_count = 1;
+		vfb->active_config.instruments[i].octave_transpose = 0;
+		vfb->active_config.instruments[i].output_level = 127;
+		vfb->active_config.instruments[i].pan = 64;
+		vfb->active_config.instruments[i].pitch_bend_range = 2;
+		vfb->active_config.instruments[i].portamento_time = 0;
+		vfb->active_config.instruments[i].voice = i;
+		vfb->active_config.instruments[i].voice_bank = 0;
+	}
+
+	// TODO
+	vfb->active_config.AMD = 0;
+	vfb->active_config.PMD = 0;
+	vfb->active_config.LFO_speed = 0;
+	vfb->active_config.LFO_waveform = 0;
+
+	memset(vfb->active_config.name, 0, sizeof(vfb->active_config.name));
+	memcpy(vfb->active_config.name, "single", sizeof("single" - 1));
+	
+	return 0;
+}

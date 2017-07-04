@@ -37,6 +37,7 @@
 
 #define VFB_MAX_FM_SLOTS              8
 #define VFB_MAX_TONE_NUMBER         256
+#define VFB_MAX_CONFIGURATIONS       20
 
 #define FLAG_TRUE                     1
 #define FLAG_FALSE                    0
@@ -125,35 +126,72 @@ typedef struct _VFB_CONFIGURATION {
 	uint8_t PMD;
 	uint8_t LFO_waveform;
 	VFB_KEY_RECEIVE_MODE key_receive_mode;
-	VFB_INSTRUMENT instruments[8];
-};
+	VFB_INSTRUMENT instruments[VFB_MAX_FM_SLOTS];
+} VFB_CONFIGURATION;
+
+// This describes the MIDI state machine for an instrument
+typedef struct _MIDI_MAP {
+	int base_voice;	// Lowest voice for this instrument
+
+	long portament;
+	int portament_on;
+
+	int bend;
+	int bend_sense_m;
+	int bend_sense_l;
+
+	int note[VFB_MAX_FM_SLOTS];
+
+	/* state of note_on:
+	2:  key pressed
+	1:  key on
+	0:  key released
+	-1: none pronouncing
+	*/
+
+	int note_on[VFB_MAX_FM_SLOTS];
+	int velocity[VFB_MAX_FM_SLOTS];
+	int hold;
+
+	int total_level[4];
+	int algorithm;
+	int slot_mask;
+
+	int step[VFB_MAX_FM_SLOTS];
+
+	int master_volume;
+	int expression;
+} MIDI_MAP;
 
 typedef struct _VFB_DATA {
   
-  unsigned char version_1[VFB_VERSION_TEXT_SIZE];
-  unsigned char version_2[VFB_VERSION_TEXT_SIZE];
+	unsigned char version_1[VFB_VERSION_TEXT_SIZE];
+	unsigned char version_2[VFB_VERSION_TEXT_SIZE];
 
-  VOICE_DATA voice[VFB_MAX_TONE_NUMBER];
+	VOICE_DATA voice[VFB_MAX_TONE_NUMBER];
+	VFB_CONFIGURATION configuration[VFB_MAX_CONFIGURATIONS];
 
+	char *voice_parameter_file;
 
-  char *voice_parameter_file;
+	/* playing work area */
 
-  /* playing work area */
+	long total_count;       /* total steps */
+	long elapsed_time;      /* unit = microsecound */
 
-  long total_count;       /* total steps */
-  long elapsed_time;      /* unit = microsecound */
+	VFB_CONFIGURATION active_config;
+	MIDI_MAP instrument_map[VFB_MAX_FM_SLOTS];	// These are indexed 1:1 with the instruments in the active configuration
+						  
+	/* user configuration */
 
-  /* user configuration */
+	int master_volume;
 
-  int master_volume;
+	/* work parameter */
 
-  /* work parameter */
+	int is_normal_exit;
 
-  int is_normal_exit;
+	int verbose;
 
-  int verbose;
-
-  int  dsp_speed;
+	int  dsp_speed;
 
 } VFB_DATA;
 

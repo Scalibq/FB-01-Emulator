@@ -89,7 +89,7 @@
 /* This should correspond to the MIDI buffer size used in real h/w devices.
  * CM-32L control ROM seems using 1000 bytes, old MT-32 isn't confirmed by now.
  */
-#define MT32EMU_SYSEX_BUFFER_SIZE 1000
+#define MT32EMU_SYSEX_BUFFER_SIZE 8192
 
 #if defined(__cplusplus) && MT32EMU_API_TYPE != 1
 

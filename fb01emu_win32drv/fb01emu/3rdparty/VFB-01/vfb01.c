@@ -58,6 +58,7 @@
 
 /* ------------------------------------------------------------------- */
 
+static int is_on_instrument(VFB_INSTRUMENT* instrument, int ch, int note);
 static int note_off( MidiEvent * );
 static int note_on( MidiEvent * );
 static int key_pressure( MidiEvent * );
@@ -87,6 +88,7 @@ int vfb01_init( VFB_DATA *vfb, int sample_buffer_size ) {
 
   if ( setup_voices( vfb ) ) return 1;
   if ( setup_ym2151( vfb ) ) return 1;
+  if ( setup_configuration(vfb) )return 1;
 
   //set_signals();
   priority_init();
@@ -192,13 +194,29 @@ int vfb01_close( VFB_DATA *vfb ) {
 
 /* ------------------------------------------------------------------- */
 
+static int is_on_instrument(VFB_INSTRUMENT* instrument, int ch, int note)
+{
+	if (instrument->midi_channel == ch)
+	{
+		if (note >= instrument->key_low_limit && note <= instrument->key_high_limit)
+			return 1;
+	}
+
+	return 0;
+}
+
 static int note_off( MidiEvent *ev ) {
 
 #ifdef VFB_DEBUG
   fprintf(stdout, "NOTEOFF:  %02x %02x\n", ev->ch, ev->a);
 #endif
+  int i;
 
-  ym2151_note_off( ev->ch, ev->a );
+  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+  {
+	  if (is_on_instrument( &evfb->active_config.instruments[i], ev->ch, ev->a))
+		ym2151_note_off(i, ev->a);
+  }
 
   return 0;
 }
@@ -208,11 +226,24 @@ static int note_on( MidiEvent *ev ) {
 #ifdef VFB_DEBUG
   fprintf(stdout, "NOTE_ON:  %02x %02x %02x\n", ev->ch, ev->a, ev->b);
 #endif
+  int i;
 
-  if ( ev->b > 0 ) 
-	ym2151_note_on( ev->ch, ev->a, ev->b );
+  if (ev->b > 0)
+  {
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (is_on_instrument(&evfb->active_config.instruments[i], ev->ch, ev->a))
+			  ym2151_note_on(ev->ch, ev->a, ev->b);
+	  }
+  }
   else
-	ym2151_note_off( ev->ch, ev->a );
+  {
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (is_on_instrument(&evfb->active_config.instruments[i], ev->ch, ev->a))
+			  ym2151_note_off(i, ev->a);
+	  }
+  }
 
   return 0;
 }

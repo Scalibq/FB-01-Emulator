@@ -41,5 +41,6 @@ extern int setup_ym2151(VFB_DATA *vfb);
 extern int reset_ym2151(void);
 
 extern int setup_voices(VFB_DATA *vfb);
+extern int setup_configuration(VFB_DATA *vfb);
 
 #endif /* _MDX2151_H_ */
