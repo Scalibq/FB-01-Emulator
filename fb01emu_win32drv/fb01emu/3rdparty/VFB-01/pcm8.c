@@ -150,7 +150,7 @@ int pcm8_close( void ) {
 
 	pcm8_stop();
 
-	free(ym2151_voice);
+	free(ym2151_voice[0]);
 
 	ym2151_voice[0] = NULL;
 	ym2151_voice[1] = NULL;
