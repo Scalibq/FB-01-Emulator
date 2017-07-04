@@ -76,7 +76,7 @@ static VFB_DATA *evfb=NULL;
 static V_YM2151 opm[VFB_MAX_CHANNEL_NUMBER];
 static int system_volume = 127;
 
-void** YMPSG;
+void* YMPSG;
 
 /* ------------------------------------------------------------------- */
 
@@ -102,88 +102,77 @@ static const int is_vol_set[8][4]={
 static int is_already_opm_allocated = FLAG_FALSE;
 static int ym2151_reg_init( VFB_DATA *vfb ) {
   int i,j;
-  int ch;
 
   /* Init OPM Emulator */
   /*
-	number of OPM = VFB_MAX_CHANNEL_NUMBER ( typically 16 )
 	clock         = 4MHz
 	sample rate   = PCM8_MASTER_PCM_RATE ( typically 44.1 kHz )
 	sample bits   = 16 bit
 	*/
 
-  if ( is_already_opm_allocated == FLAG_FALSE ) {
-	  YMPSG = (void**)malloc(sizeof(void*) * vfb->units);
+	if ( is_already_opm_allocated == FLAG_FALSE ) {
+		YMPSG = ym2151_init( NULL, 4000*1000,
+			vfb->dsp_speed );
 
-	  for (ch = 0; ch < vfb->units; ch++)
-	  {
-		  YMPSG[ch] = ym2151_init( NULL, 4000*1000,
-			 vfb->dsp_speed );
+		if ( YMPSG == NULL  ) return 1;
+		ym2151_reset_chip(YMPSG);
 
-		if ( YMPSG[ch] == NULL  ) return 1;
-	  }
-
-	for ( ch=0 ; ch<vfb->units ; ch++ )
-	  ym2151_reset_chip(YMPSG[ch]);
-
-	is_already_opm_allocated = FLAG_TRUE;
-  }
-
-  for ( ch=0 ; ch<vfb->units ; ch++ ) {
-	for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
-	  reg_write( ch, 0x08, 0*8 + i );    /* KON */
+		is_already_opm_allocated = FLAG_TRUE;
 	}
-	reg_write( ch, 0x0f, 0 );            /* NE, NFREQ */
-	reg_write( ch, 0x18, 0 );            /* LFRQ */
-	reg_write( ch, 0x19, 0*128 + 0 );    /* AMD */
-	reg_write( ch, 0x19, 1*128 + 0 );    /* AMD */
-	reg_write( ch, 0x1b, 0*64  + 0 );    /* CT, W */
+
+	for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
+	  reg_write( 0, 0x08, 0*8 + i );    /* KON */
+	}
+	reg_write( 0, 0x0f, 0 );            /* NE, NFREQ */
+	reg_write( 0, 0x18, 0 );            /* LFRQ */
+	reg_write( 0, 0x19, 0*128 + 0 );    /* AMD */
+	reg_write( 0, 0x19, 1*128 + 0 );    /* AMD */
+	reg_write( 0, 0x1b, 0*64  + 0 );    /* CT, W */
 	
 	for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
-	  reg_write( ch, 0x20+i, 3*64 + 0*8 +0 ); /* LR, FL, CON */
-	  reg_write( ch, 0x28+i, 0*16 + 0 );      /* OCT, NOTE */
-	  reg_write( ch, 0x30+i, 0 );             /* KF */
-	  reg_write( ch, 0x38+i, 0*16 + 0 );      /* PMS, AMS */
+	  reg_write( 0, 0x20+i, 3*64 + 0*8 +0 ); /* LR, FL, CON */
+	  reg_write( 0, 0x28+i, 0*16 + 0 );      /* OCT, NOTE */
+	  reg_write( 0, 0x30+i, 0 );             /* KF */
+	  reg_write( 0, 0x38+i, 0*16 + 0 );      /* PMS, AMS */
 	}
 	for ( i=0 ; i<0x20 ; i++ ) {
-	  reg_write( ch, 0x40+i, 0*16 + 0 );      /* DT1, MUL */
-	  reg_write( ch, 0x60+i, 0 );             /* TL */
-	  reg_write( ch, 0x80+i, 0*64 + 0 );      /* KS, AR */
-	  reg_write( ch, 0xa0+i, 0*128 + 0 );     /* AMS, D1R */
-	  reg_write( ch, 0xc0+i, 0*64 + 0 );      /* DT2, D2R */
-	  reg_write( ch, 0xe0+i, 0*16 + 0 );      /* D1L, RR */
+	  reg_write( 0, 0x40+i, 0*16 + 0 );      /* DT1, MUL */
+	  reg_write( 0, 0x60+i, 0 );             /* TL */
+	  reg_write( 0, 0x80+i, 0*64 + 0 );      /* KS, AR */
+	  reg_write( 0, 0xa0+i, 0*128 + 0 );     /* AMS, D1R */
+	  reg_write( 0, 0xc0+i, 0*64 + 0 );      /* DT2, D2R */
+	  reg_write( 0, 0xe0+i, 0*16 + 0 );      /* D1L, RR */
 	}
 	
-	reg_write( ch, 0x1b, 2 );                 /* wave form: triangle */
-	reg_write( ch, 0x18, 196 );               /* frequency */
+	reg_write( 0, 0x1b, 2 );                 /* wave form: triangle */
+	reg_write( 0, 0x18, 196 );               /* frequency */
 
 	for ( i=0 ; i<VFB_MAX_FM_SLOTS ; i++ ) {
-	  opm[ch].note[i]=0;
-	  opm[ch].note_on[i]=-1;
-	  opm[ch].step[i]=0;
-	  opm[ch].velocity[i]=0;
+	  opm[0].note[i]=0;
+	  opm[0].note_on[i]=-1;
+	  opm[0].step[i]=0;
+	  opm[0].velocity[i]=0;
 	}
 
 	for ( j=0 ; j<3 ; j++ ) {
-	  opm[ch].total_level[j]=0;
+	  opm[0].total_level[j]=0;
 	}
-	opm[ch].total_level[3]=127;
+	opm[0].total_level[3]=127;
 
-	opm[ch].portament     = 0;
-	opm[ch].portament_on  = 0;
-	opm[ch].slot_mask     = 0;
-	opm[ch].algorithm     = 0;
-	opm[ch].bend          = 0;
-	opm[ch].bend_sense_m  = 2;
-	opm[ch].bend_sense_l  = 0;
-	opm[ch].hold          = FLAG_FALSE;
+	opm[0].portament     = 0;
+	opm[0].portament_on  = 0;
+	opm[0].slot_mask     = 0;
+	opm[0].algorithm     = 0;
+	opm[0].bend          = 0;
+	opm[0].bend_sense_m  = 2;
+	opm[0].bend_sense_l  = 0;
+	opm[0].hold          = FLAG_FALSE;
 	
-	opm[ch].master_volume = 127;
-	opm[ch].expression    = 127;
+	opm[0].master_volume = 127;
+	opm[0].expression    = 127;
 
-	ym2151_set_voice( ch, VFB_INITIAL_VOICE_NUMBER );
-  }
-
+	ym2151_set_voice( 0, VFB_INITIAL_VOICE_NUMBER );
+  
   system_volume = 127;
 
   return 0;
@@ -551,7 +540,7 @@ static void reg_write( int ch, int adr, int val ) {
 
   opm[ch].ym2151_register_map[adr] = val;
 
-  ym2151_write_reg( YMPSG[ch], adr, val );
+  ym2151_write_reg( YMPSG, adr, val );
 
   return;
 }
@@ -561,5 +550,5 @@ static int reg_read( int ch, int adr ) {
   if ( adr > 0xff ) return 0;
   if ( adr < 0 ) return 0;
 
-  return opm[ch].ym2151_register_map[adr];
+  return opm[0].ym2151_register_map[adr];
 }

@@ -109,7 +109,8 @@ void vfb01_doMidiEvent( VFB_DATA *vfb, MidiEvent* e ) {
 
   int i;
 
-	if ( e->ch >= vfb->units ) return;
+	// TODO: MIDI to YM2164 voice mapping
+	if ( e->ch >= 1 ) return;
 
 	switch ( e->type ) {
 	case MIDI_NOTEOFF:
@@ -147,9 +148,8 @@ void vfb01_doMidiEvent( VFB_DATA *vfb, MidiEvent* e ) {
 	default:
 	  break;
 	}
-	for ( i=0 ; i<vfb->units ; i++ ) {
-	  ym2151_set_freq_volume(i);
-	}
+
+	ym2151_set_freq_volume(0);
 }
 
 #if 0

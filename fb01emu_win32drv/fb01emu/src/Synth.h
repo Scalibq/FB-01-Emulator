@@ -36,7 +36,6 @@ class MidiEventQueue;
 
 static int   verbose = FLAG_FALSE;
 static int   master_volume = 127;
-static int   units = 1;	// VFB_MAX_CHANNEL_NUMBER;
 static char *voice_parameter_file;
 
 static VFB_DATA *vfb = NULL;

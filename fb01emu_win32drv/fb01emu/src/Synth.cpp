@@ -120,7 +120,6 @@ bool Synth::open() {
 
 	vfb->voice_parameter_file = voice_parameter_file;
 	vfb->master_volume = master_volume;
-	vfb->units = units;
 
 	vfb01_init(vfb, MAX_SAMPLES_PER_RUN);
 

@@ -97,18 +97,8 @@ static int is_encoding_16bit     = FLAG_TRUE;
 static int is_encoding_stereo    = FLAG_TRUE; 
 static int dsp_speed             = PCM8_MASTER_PCM_RATE;
 
-static int is_esd_enabled        = FLAG_FALSE;
-
-static unsigned char *sample_buffer = NULL;
-
-static SAMP *ym2151_voice[VFB_MAX_CHANNEL_NUMBER][2];
+static SAMP *ym2151_voice[2];
 static int   ym2151_pan[VFB_MAX_CHANNEL_NUMBER];
-
-#ifdef ENABLE_BUFFERED_PCM
-static unsigned char *pcm_buffer=NULL;
-static int pcm_buffer_ptr;
-static int pcm_buffer_size;
-#endif /* BUFFERED_PCM */
 
 static unsigned char riff[]={
   'R','I','F','F',
@@ -132,28 +122,17 @@ int pcm8_open( VFB_DATA *vfb, int sample_buffer_size ) {
   if ( pcm8_opened == FLAG_TRUE ) return 0;
   evfb = vfb;
 
-  is_esd_enabled = FLAG_FALSE;
-
-#ifdef ENABLE_BUFFERED_PCM
-  if ( pcm_buffer != NULL ) free(pcm_buffer);
-#endif
-
-  if ( sample_buffer == NULL ) {
-	sample_buffer =
-	  (unsigned char *)malloc(sizeof(char)*sample_buffer_size*2*2);
-  }
-
-  if ( sample_buffer == NULL ) return 1;
-
-  buf = (SAMP *)malloc( sizeof(SAMP) * sample_buffer_size * evfb->units * 2 );
+  buf = (SAMP *)malloc( sizeof(SAMP) * sample_buffer_size * 2 );
   if ( buf == NULL ) return 1;
 
-  for ( j=0 ; j<evfb->units ; j++ ) {
-	for ( i=0 ; i<2 ; i++ ) {
-	  ym2151_voice[j][i] = (SAMP *)((uintptr_t)buf + sizeof(SAMP)*sample_buffer_size*(j*2 + i));
+	 for ( i=0 ; i<2 ; i++ ) {
+		ym2151_voice[i] = (SAMP *)((uintptr_t)buf + sizeof(SAMP)*sample_buffer_size*i);
 	}
-	ym2151_pan[j] = 64;
-  }
+
+	// TODO
+	for (j = 0; j<1; j++) {
+		ym2151_pan[j] = 64;
+	}
 
   master_volume = evfb->master_volume;
   if ( master_volume < 0 ) master_volume = 0;
@@ -165,22 +144,18 @@ int pcm8_open( VFB_DATA *vfb, int sample_buffer_size ) {
 }
 
 int pcm8_close( void ) {
-  int i;
+	int i;
 
-  pcm8_opened = FLAG_FALSE;
+	pcm8_opened = FLAG_FALSE;
 
-  pcm8_stop();
+	pcm8_stop();
 
-  free(ym2151_voice[0][0]);
-  for ( i=0 ; i>evfb->units ; i++ ) {
-	ym2151_voice[i][0] = NULL;
-	ym2151_voice[i][1] = NULL;
-  }
+	free(ym2151_voice);
 
-  free( sample_buffer );
-  sample_buffer = NULL;
+	ym2151_voice[0] = NULL;
+	ym2151_voice[1] = NULL;
 
-  return 0;
+	return 0;
 }
 
 int pcm8_pan( int ch, int val ) {
@@ -207,26 +182,22 @@ void pcm8( int8_t* sample_buffer, int sample_buffer_size ) {
 
   /* Execute YM2151 emulator */
 
-  for ( i=0 ; i<evfb->units ; i++ ) {
-	ym2151_update_one( YMPSG[i], ym2151_voice[i], sample_buffer_size );
-  }
+	ym2151_update_one( YMPSG, ym2151_voice, sample_buffer_size );
 
   /* now pronouncing ! */
 
+
+	// TODO: This was a mixing routine for multiple YM2151 instances
+	// Make it work correctly for one YM2151 with panning and master volume.
+	// Some things might not have to be here, but part of the YM2151 parameters itself.
   for ( i=0 ; i<sample_buffer_size ; i++ ) {
 	int v, sv;
 	long l,r, sl,sr;
 	unsigned char l1, l2, r1, r2, v1,v2;
-	SAMP *ptr;
 
-	l=0; r=0;
-	for ( j=0 ; j<evfb->units ; j++ ) {
-	  ptr = (SAMP *)ym2151_voice[j][0];
-	  l += (long)(ptr[i] * (127-ym2151_pan[j])/128);
+	l = (long)(ym2151_voice[0][i]);// *(127 - ym2151_pan[j]) / 128);
 	  
-	  ptr = (SAMP *)ym2151_voice[j][1];
-	  r += (long)(ptr[i] * ym2151_pan[j]/128);
-	}
+	r = (long)(ym2151_voice[1][i]);// * ym2151_pan[j]/128);
 
 	l = l * master_volume / PCM8_MAX_VOLUME;
 	r = r * master_volume / PCM8_MAX_VOLUME;
@@ -281,17 +252,11 @@ void pcm8( int8_t* sample_buffer, int sample_buffer_size ) {
 /* ------------------------------------------------------------------ */
 
 void pcm8_start( void ) {
-	// TODO
-	//pcplay_Init(PCM8_MASTER_PCM_RATE, (PCM8_MASTER_PCM_RATE*PCM8_SYSTEM_RATE*4)/1000);
-
 	pcm8_interrupt_active = FLAG_TRUE;
 	return;
 }
 
 void pcm8_stop( void ) {
-	// TODO
-	//pcplay_Close();
-
 	pcm8_interrupt_active=FLAG_FALSE;
 	return;
 }

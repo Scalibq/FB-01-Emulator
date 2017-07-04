@@ -102,7 +102,6 @@ typedef struct _VFB_DATA {
   /* user configuration */
 
   int master_volume;
-  int units;
 
   /* work parameter */
 
@@ -121,13 +120,12 @@ extern int vfb01_run( VFB_DATA * );
 extern int vfb01_close( VFB_DATA * );
 extern void vfb01_doMidiEvent(VFB_DATA *vfb, MidiEvent* e);
 
-
 extern int getMidiEvent( MidiEvent * );
 
 /* ------------------------------------------------------------------- */
 
 extern VOICE_DATA **voices;
-extern void** YMPSG;
+extern void* YMPSG;
 
 /* ------------------------------------------------------------------- */
 
