@@ -116,10 +116,7 @@ typedef struct _VFB_DATA {
 
 /* ------------------------------------------------------------------- */
 
-extern int openVirtualMidiDevice( const char * );
-extern int closeVirtualMidiDevice( void );
-
-extern int vfb01_init( VFB_DATA * );
+extern int vfb01_init( VFB_DATA *, int );
 extern int vfb01_run( VFB_DATA * );
 extern int vfb01_close( VFB_DATA * );
 extern void vfb01_doMidiEvent(VFB_DATA *vfb, MidiEvent* e);

@@ -20,13 +20,11 @@
 
 /* functions */
 
-extern int  pcm8_open( VFB_DATA * );
+extern int  pcm8_open( VFB_DATA *, int );
 extern int  pcm8_close( void );
-extern void pcm8_init( void );
 extern void pcm8_start( void );
 extern void pcm8_stop( void );
 
-extern void do_pcm8( void );
 extern void pcm8(int8_t* sample_buffer, int sample_buffer_size);
 extern int pcm8_pan(int ch, int val);
 

@@ -100,7 +100,6 @@ static int dsp_speed             = PCM8_MASTER_PCM_RATE;
 static int is_esd_enabled        = FLAG_FALSE;
 
 static unsigned char *sample_buffer = NULL;
-static int sample_buffer_size       = 0;
 
 static SAMP *ym2151_voice[VFB_MAX_CHANNEL_NUMBER][2];
 static int   ym2151_pan[VFB_MAX_CHANNEL_NUMBER];
@@ -126,7 +125,7 @@ static unsigned char riff[]={
 
 /* ------------------------------------------------------------------ */
 
-int pcm8_open( VFB_DATA *vfb ) {
+int pcm8_open( VFB_DATA *vfb, int sample_buffer_size ) {
   int i,j;
   void *buf;
 
@@ -138,11 +137,6 @@ int pcm8_open( VFB_DATA *vfb ) {
 #ifdef ENABLE_BUFFERED_PCM
   if ( pcm_buffer != NULL ) free(pcm_buffer);
 #endif
-
-  // TODO
-
-  sample_buffer_size =
-	  65536;//dsp_speed * PCM8_SYSTEM_RATE / 1000;
 
   if ( sample_buffer == NULL ) {
 	sample_buffer =

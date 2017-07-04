@@ -78,12 +78,12 @@ static int nrpn_adr[VFB_MAX_CHANNEL_NUMBER];
 
 /* ------------------------------------------------------------------- */
 
-int vfb01_init( VFB_DATA *vfb ) {
+int vfb01_init( VFB_DATA *vfb, int sample_buffer_size ) {
 
   int i;
 
   if ( evfb == NULL && vfb != NULL ) evfb=vfb;
-  if ( pcm8_open( vfb ) ) return 1;
+  if ( pcm8_open( vfb, sample_buffer_size ) ) return 1;
 
   if ( setup_voices( vfb ) ) return 1;
   if ( setup_ym2151( vfb ) ) return 1;
@@ -177,6 +177,8 @@ int vfb01_run( VFB_DATA *vfb ) {
 int vfb01_close( VFB_DATA *vfb ) {
 
   /* finalize all resources */
+
+	pcm8_close();
 
 #ifdef _POSIX_PRIORITY_SCHEDULING
   sched_yield();

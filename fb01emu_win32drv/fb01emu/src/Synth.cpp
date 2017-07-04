@@ -122,8 +122,7 @@ bool Synth::open() {
 	vfb->master_volume = master_volume;
 	vfb->units = units;
 
-	vfb01_init(vfb);
-	pcm8_open(vfb);
+	vfb01_init(vfb, MAX_SAMPLES_PER_RUN);
 
 	midiQueue = new MidiEventQueue();
 
@@ -144,7 +143,6 @@ void Synth::dispose() {
 
 	if (vfb != NULL)
 	{
-		pcm8_close();
 		vfb01_close(vfb);
 		free(vfb);
 		vfb = NULL;
@@ -314,7 +312,7 @@ void Synth::playSysexNow(const Bit8u *sysex, Bit32u len) {
 	::MidiEvent e;
 	e.ch = 0;
 	e.type = 0xF0;
-	for (int i = 1; i < len; i++)
+	for (Bit32u i = 1; i < len; i++)
 		e.ex_buf[i - 1] = sysex[i];
 
 	if (vfb != NULL)
