@@ -85,12 +85,56 @@ typedef struct _VOICE_DATA {
 
 } VOICE_DATA;
 
+typedef enum _VFB_INPUT_CONTROLLER {
+	VFB_IC_NOT_ASSIGNED,
+	VFB_IC_AFTER_TOUCH,
+	VFB_IC_MODULATION_WHEEL,
+	VFB_IC_BREATH_CONTROLLER,
+	VFB_IC_FOOT_CONTROLLER
+} VFB_INPUT_CONTROLLER;
+
+typedef struct _VFB_INSTRUMENT {
+	uint8_t note_count;
+	uint8_t midi_channel;
+	uint8_t key_high_limit;
+	uint8_t key_low_limit;
+	uint8_t voice_bank;
+	uint8_t voice;
+	uint8_t detune;
+	uint8_t octave_transpose;
+	uint8_t output_level;
+	uint8_t pan;
+	uint8_t LFO_enable;
+	uint8_t portamento_time;
+	uint8_t pitch_bend_range;
+	uint8_t mono_poly;
+	VFB_INPUT_CONTROLLER input_controller;
+} VFB_INSTRUMENT;
+
+typedef enum _VFB_KEY_RECEIVE_MODE {
+	VFB_KM_ALL,
+	VFB_KM_EVEN,
+	VFB_KM_ODD
+} VFB_KEY_RECEIVE_MODE;
+
+typedef struct _VFB_CONFIGURATION {
+	uint8_t name[8];
+	uint8_t combine;
+	uint8_t LFO_speed;
+	uint8_t AMD;
+	uint8_t PMD;
+	uint8_t LFO_waveform;
+	VFB_KEY_RECEIVE_MODE key_receive_mode;
+	VFB_INSTRUMENT instruments[8];
+};
+
 typedef struct _VFB_DATA {
   
   unsigned char version_1[VFB_VERSION_TEXT_SIZE];
   unsigned char version_2[VFB_VERSION_TEXT_SIZE];
 
   VOICE_DATA voice[VFB_MAX_TONE_NUMBER];
+
 
   char *voice_parameter_file;
 
