@@ -83,8 +83,8 @@ void* YMPSG;
 static void freq_write( int, int );
 static void volume_write( int, int );
 
-static void reg_write( int, int, int );
-static int reg_read( int, int );
+static void reg_write( int, int );
+static int reg_read( int );
 
 static const int is_vol_set[8][4]={
   {0,0,0,1},
@@ -120,32 +120,32 @@ static int ym2151_reg_init( VFB_DATA *vfb ) {
 		is_already_opm_allocated = FLAG_TRUE;
 	}
 
-	for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
-	  reg_write( 0, 0x08, 0*8 + i );    /* KON */
+	for ( i=0 ; i<VFB_MAX_FM_SLOTS; i++ ) {
+	  reg_write( 0x08, 0*8 + i );    /* KON */
 	}
-	reg_write( 0, 0x0f, 0 );            /* NE, NFREQ */
-	reg_write( 0, 0x18, 0 );            /* LFRQ */
-	reg_write( 0, 0x19, 0*128 + 0 );    /* AMD */
-	reg_write( 0, 0x19, 1*128 + 0 );    /* AMD */
-	reg_write( 0, 0x1b, 0*64  + 0 );    /* CT, W */
+	reg_write( 0x0f, 0 );            /* NE, NFREQ */
+	reg_write( 0x18, 0 );            /* LFRQ */
+	reg_write( 0x19, 0*128 + 0 );    /* AMD */
+	reg_write( 0x19, 1*128 + 0 );    /* AMD */
+	reg_write( 0x1b, 0*64  + 0 );    /* CT, W */
 	
-	for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
-	  reg_write( 0, 0x20+i, 3*64 + 0*8 +0 ); /* LR, FL, CON */
-	  reg_write( 0, 0x28+i, 0*16 + 0 );      /* OCT, NOTE */
-	  reg_write( 0, 0x30+i, 0 );             /* KF */
-	  reg_write( 0, 0x38+i, 0*16 + 0 );      /* PMS, AMS */
+	for ( i=0 ; i<VFB_MAX_FM_SLOTS; i++ ) {
+	  reg_write( 0x20+i, 3*64 + 0*8 +0 ); /* LR, FL, CON */
+	  reg_write( 0x28+i, 0*16 + 0 );      /* OCT, NOTE */
+	  reg_write( 0x30+i, 0 );             /* KF */
+	  reg_write( 0x38+i, 0*16 + 0 );      /* PMS, AMS */
 	}
 	for ( i=0 ; i<0x20 ; i++ ) {
-	  reg_write( 0, 0x40+i, 0*16 + 0 );      /* DT1, MUL */
-	  reg_write( 0, 0x60+i, 0 );             /* TL */
-	  reg_write( 0, 0x80+i, 0*64 + 0 );      /* KS, AR */
-	  reg_write( 0, 0xa0+i, 0*128 + 0 );     /* AMS, D1R */
-	  reg_write( 0, 0xc0+i, 0*64 + 0 );      /* DT2, D2R */
-	  reg_write( 0, 0xe0+i, 0*16 + 0 );      /* D1L, RR */
+	  reg_write( 0x40+i, 0*16 + 0 );      /* DT1, MUL */
+	  reg_write( 0x60+i, 0 );             /* TL */
+	  reg_write( 0x80+i, 0*64 + 0 );      /* KS, AR */
+	  reg_write( 0xa0+i, 0*128 + 0 );     /* AMS, D1R */
+	  reg_write( 0xc0+i, 0*64 + 0 );      /* DT2, D2R */
+	  reg_write( 0xe0+i, 0*16 + 0 );      /* D1L, RR */
 	}
 	
-	reg_write( 0, 0x1b, 2 );                 /* wave form: triangle */
-	reg_write( 0, 0x18, 196 );               /* frequency */
+	reg_write( 0x1b, 2 );                 /* wave form: triangle */
+	reg_write( 0x18, 196 );               /* frequency */
 
 	for ( i=0 ; i<VFB_MAX_FM_SLOTS ; i++ ) {
 	  opm[0].note[i]=0;
@@ -201,7 +201,7 @@ void ym2151_all_note_off( int ch ) {
   for ( i=0 ; i<VFB_MAX_FM_SLOTS ; i++ ) {
 	opm[ch].note_on[i]=0;
 
-	reg_write( ch, 0x08, 0+i );          /* KON */
+	reg_write( 0x08, 0+i );          /* KON */
   }
 
   return;
@@ -229,8 +229,8 @@ void ym2151_note_on( int ch, int note, int vel ) {
   opm[ch].note_on[slot]=2;
   opm[ch].velocity[slot]=vel;
 
-  reg_write( ch, 0x01, 0x02 ); /* LFO SYNC */
-  reg_write( ch, 0x01, 0x00 );
+  reg_write( 0x01, 0x02 ); /* LFO SYNC */
+  reg_write( 0x01, 0x00 );
 
   return;
 }
@@ -325,12 +325,12 @@ void ym2151_set_modulation_depth( int ch, int val ) {
   if ( val > 127 ) val = 127;
   if ( val < 0 )   val = 0;
 
-  reg_write( ch, 0x1b, 66&0x03 );
-  reg_write( ch, 0x18, 212 );
-  reg_write( ch, 0x19, val|0x80 ); /* PMD */
-  reg_write( ch, 0x19, 9 ); /* AMD */
+  reg_write( 0x1b, 66&0x03 );
+  reg_write( 0x18, 212 );
+  reg_write( 0x19, val|0x80 ); /* PMD */
+  reg_write( 0x19, 9 ); /* AMD */
   for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
-	reg_write( ch, 0x38+i, 112 );
+	reg_write( 0x38+i, 112 );
   }
 
   return;
@@ -347,25 +347,25 @@ void ym2151_set_voice( int ch, int tone ) {
 
   for ( slot=0 ; slot < VFB_MAX_FM_SLOTS ; slot++ ) {
 
-	j = reg_read( ch, 0x20+slot );     /* LR, FL, CON */
-	reg_write( ch, 0x20+slot, (j&0xc0) + v->v0 );
+	j = reg_read(  0x20+slot );     /* LR, FL, CON */
+	reg_write( 0x20+slot, (j&0xc0) + v->v0 );
 	opm[ch].algorithm = v->con;
 	opm[ch].slot_mask = v->slot_mask;
 	
 	for ( i=0 ; i<4 ; i++ ) {
 	  r = slot + i*8;
 	  
-	  reg_write( ch, 0x40+r, v->v1[i] );    /* DT1, MUL */
-	  reg_write( ch, 0x80+r, v->v3[i] );    /* KS, AR */
-	  reg_write( ch, 0xa0+r, v->v4[i] );    /* AME, D1R */
-	  reg_write( ch, 0xc0+r, v->v5[i] );    /* DT2, D2R */
-	  reg_write( ch, 0xe0+r, v->v6[i] );    /* SL, RR */
+	  reg_write( 0x40+r, v->v1[i] );    /* DT1, MUL */
+	  reg_write( 0x80+r, v->v3[i] );    /* KS, AR */
+	  reg_write( 0xa0+r, v->v4[i] );    /* AME, D1R */
+	  reg_write( 0xc0+r, v->v5[i] );    /* DT2, D2R */
+	  reg_write( 0xe0+r, v->v6[i] );    /* SL, RR */
 	  
 	  opm[ch].total_level[i] = 127 - v->v2[i];
 	  if ( is_vol_set[opm[ch].algorithm][i] == 0 )
-	reg_write( ch, 0x60+r, v->v2[i]&0x7f );   /* TL */
+	reg_write( 0x60+r, v->v2[i]&0x7f );   /* TL */
 	  else
-	reg_write( ch, 0x60+r, 127 );             /* TL */
+	reg_write( 0x60+r, 127 );             /* TL */
 	}
   }
 
@@ -455,7 +455,7 @@ static void freq_write( int ch, int slot ) {
 
   if ( opm[ch].note_on[slot]==2 ) {
 	if ( opm[ch].hold==FLAG_TRUE ) {
-	  reg_write( ch, 0x08, slot );
+	  reg_write( 0x08, slot );
 	}
 	opm[ch].note_on[slot] = 1;
   }
@@ -475,9 +475,9 @@ static void freq_write( int ch, int slot ) {
   f2 = kf*4;
   f3 = key + slot;
 
-  reg_write( ch, 0x28 + slot, f1 );  /* OCT, NOTE */
-  reg_write( ch, 0x30 + slot, f2 );  /* KF */
-  reg_write( ch, 0x08,        f3 );  /* KEY ON */
+  reg_write( 0x28 + slot, f1 );  /* OCT, NOTE */
+  reg_write( 0x30 + slot, f2 );  /* KF */
+  reg_write( 0x08,        f3 );  /* KEY ON */
 
   /*reg_write( ch, 0x38 + slot, 0x50 );   /* PMS:5, AMS:0 */
 
@@ -523,7 +523,7 @@ static void volume_write( int ch, int slot ) {
 	if ( vol < 0 )   vol = 0;
 	v = vol_table[vol];
 	
-	reg_write( ch, 0x60+r, v );                      /* TL */
+	reg_write( 0x60+r, v );                      /* TL */
   }
 
   return;
@@ -533,19 +533,19 @@ static void volume_write( int ch, int slot ) {
 
 /* register actions */
 
-static void reg_write( int ch, int adr, int val ) {
+static void reg_write( int adr, int val ) {
 
   if ( adr > 0x0ff ) return;
   if ( adr < 0 ) return;
 
-  opm[ch].ym2151_register_map[adr] = val;
+  opm[0].ym2151_register_map[adr] = val;
 
   ym2151_write_reg( YMPSG, adr, val );
 
   return;
 }
 
-static int reg_read( int ch, int adr ) {
+static int reg_read( int adr ) {
 
   if ( adr > 0xff ) return 0;
   if ( adr < 0 ) return 0;
