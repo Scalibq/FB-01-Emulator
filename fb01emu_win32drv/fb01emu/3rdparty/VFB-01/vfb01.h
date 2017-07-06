@@ -129,40 +129,6 @@ typedef struct _VFB_CONFIGURATION {
 	VFB_INSTRUMENT instruments[VFB_MAX_FM_SLOTS];
 } VFB_CONFIGURATION;
 
-// This describes the MIDI state machine for an instrument
-typedef struct _MIDI_MAP {
-	int base_voice;	// Lowest voice for this instrument
-
-	long portament;
-	int portament_on;
-
-	int bend;
-	int bend_sense_m;
-	int bend_sense_l;
-
-	int note[VFB_MAX_FM_SLOTS];
-
-	/* state of note_on:
-	2:  key pressed
-	1:  key on
-	0:  key released
-	-1: none pronouncing
-	*/
-
-	int note_on[VFB_MAX_FM_SLOTS];
-	int velocity[VFB_MAX_FM_SLOTS];
-	int hold;
-
-	int total_level[4];
-	int algorithm;
-	int slot_mask;
-
-	int step[VFB_MAX_FM_SLOTS];
-
-	int master_volume;
-	int expression;
-} MIDI_MAP;
-
 typedef struct _VFB_DATA {
   
 	unsigned char version_1[VFB_VERSION_TEXT_SIZE];
@@ -179,7 +145,6 @@ typedef struct _VFB_DATA {
 	long elapsed_time;      /* unit = microsecound */
 
 	VFB_CONFIGURATION active_config;
-	MIDI_MAP instrument_map[VFB_MAX_FM_SLOTS];	// These are indexed 1:1 with the instruments in the active configuration
 						  
 	/* user configuration */
 

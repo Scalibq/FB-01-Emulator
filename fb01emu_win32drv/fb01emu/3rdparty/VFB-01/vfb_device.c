@@ -35,45 +35,46 @@
 
 /* ------------------------------------------------------------------- */
 
-typedef struct _V_YM2151 {
+// This describes the MIDI state machine for an instrument
+typedef struct _MIDI_MAP {
+	int base_voice;	// Lowest voice for this instrument
 
-  int ym2151_register_map[256];
-  
-  long portament;
-  int portament_on;
+	long portament;
+	int portament_on;
 
-  int bend;
-  int bend_sense_m;
-  int bend_sense_l;
+	int bend;
+	int bend_sense_m;
+	int bend_sense_l;
 
-  int note[VFB_MAX_FM_SLOTS];
+	int note[VFB_MAX_FM_SLOTS];
 
-  /* state of note_on:
-	 2:  key pressed
-	 1:  key on
-	 0:  key released
-	 -1: none pronouncing
-  */
+	/* state of note_on:
+	2:  key pressed
+	1:  key on
+	0:  key released
+	-1: none pronouncing
+	*/
 
-  int note_on[VFB_MAX_FM_SLOTS];
-  int velocity[VFB_MAX_FM_SLOTS];
-  int hold;
+	int note_on[VFB_MAX_FM_SLOTS];
+	int velocity[VFB_MAX_FM_SLOTS];
+	int hold;
 
-  int total_level[4];
-  int algorithm;
-  int slot_mask;
+	int total_level[4];
+	int algorithm;
+	int slot_mask;
 
-  int step[VFB_MAX_FM_SLOTS];
+	int step[VFB_MAX_FM_SLOTS];
 
-  int master_volume;
-  int expression;
-
-} V_YM2151;
+	int master_volume;
+	int expression;
+} MIDI_MAP;
 
 /* ------------------------------------------------------------------- */
 
 static VFB_DATA *evfb=NULL;
-static V_YM2151 opm[VFB_MAX_CHANNEL_NUMBER];
+MIDI_MAP instrument_map[VFB_MAX_FM_SLOTS];	// These are indexed 1:1 with the instruments in the active configuration
+int ym2151_register_map[256];
+
 static int system_volume = 127;
 
 void* YMPSG;
@@ -147,31 +148,36 @@ static int ym2151_reg_init( VFB_DATA *vfb ) {
 	reg_write( 0x1b, 2 );                 /* wave form: triangle */
 	reg_write( 0x18, 196 );               /* frequency */
 
-	for ( i=0 ; i<VFB_MAX_FM_SLOTS ; i++ ) {
-	  opm[0].note[i]=0;
-	  opm[0].note_on[i]=-1;
-	  opm[0].step[i]=0;
-	  opm[0].velocity[i]=0;
+
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	{
+		instrument_map[i].base_voice = i;
+		for (j = 0; j < VFB_MAX_FM_SLOTS; j++) {
+			instrument_map[i].note[j] = 0;
+			instrument_map[i].note_on[j] = -1;
+			instrument_map[i].step[j] = 0;
+			instrument_map[i].velocity[j] = 0;
+		}
+
+		for (j = 0; j < 3; j++) {
+			instrument_map[i].total_level[j] = 0;
+		}
+		instrument_map[i].total_level[3] = 127;
+
+		instrument_map[i].portament = 0;
+		instrument_map[i].portament_on = 0;
+		instrument_map[i].slot_mask = 0;
+		instrument_map[i].algorithm = 0;
+		instrument_map[i].bend = 0;
+		instrument_map[i].bend_sense_m = 2;
+		instrument_map[i].bend_sense_l = 0;
+		instrument_map[i].hold = FLAG_FALSE;
+
+		instrument_map[i].master_volume = 127;
+		instrument_map[i].expression = 127;
+
+		ym2151_set_voice(i, VFB_INITIAL_VOICE_NUMBER);
 	}
-
-	for ( j=0 ; j<3 ; j++ ) {
-	  opm[0].total_level[j]=0;
-	}
-	opm[0].total_level[3]=127;
-
-	opm[0].portament     = 0;
-	opm[0].portament_on  = 0;
-	opm[0].slot_mask     = 0;
-	opm[0].algorithm     = 0;
-	opm[0].bend          = 0;
-	opm[0].bend_sense_m  = 2;
-	opm[0].bend_sense_l  = 0;
-	opm[0].hold          = FLAG_FALSE;
-	
-	opm[0].master_volume = 127;
-	opm[0].expression    = 127;
-
-	ym2151_set_voice( 0, VFB_INITIAL_VOICE_NUMBER );
   
   system_volume = 127;
 
@@ -195,39 +201,41 @@ int reset_ym2151( void ) {
 
 /* ------------------------------------------------------------------- */
 
-void ym2151_all_note_off( int ch ) {
+void ym2151_all_note_off( int instrument ) {
 
   int i,j;
-  for ( i=0 ; i<VFB_MAX_FM_SLOTS ; i++ ) {
-	opm[ch].note_on[i]=0;
 
-	reg_write( 0x08, 0+i );          /* KON */
+  for ( i=0; i < evfb->active_config.instruments[instrument].note_count; i++ )
+  {
+	instrument_map[instrument].note_on[i]=0;
+
+	reg_write( 0x08, 0+i + instrument_map[instrument].base_voice);          /* KON */
   }
 
   return;
 }
 
-void ym2151_note_on( int ch, int note, int vel ) {
+void ym2151_note_on( int instrument, int note, int vel ) {
 
   int slot;
   int longest_step=0, longest_slot=0;
 
-  for ( slot=0 ; slot < VFB_MAX_FM_SLOTS ; slot++ ) {
-	if ( opm[ch].note_on[slot] <= 0 ) break;        /* not playing */
-	if ( opm[ch].note[slot] == note ) break;        /* same note */
+  for ( slot=0 ; slot < evfb->active_config.instruments[instrument].note_count; slot++ ) {
+	if (instrument_map[instrument].note_on[slot] <= 0 ) break;        /* not playing */
+	if (instrument_map[instrument].note[slot] == note ) break;        /* same note */
 
-	if ( longest_step < opm[ch].step[slot] ) {      /* longest tone */
-	  longest_step = opm[ch].step[slot];
+	if ( longest_step < instrument_map[instrument].step[slot] ) {      /* longest tone */
+	  longest_step = instrument_map[instrument].step[slot];
 	  longest_slot = slot;
 	}
   }
   if ( slot == VFB_MAX_FM_SLOTS )
 	slot = longest_slot;
 
-  opm[ch].step[slot]=0;
-  opm[ch].note[slot]=note;
-  opm[ch].note_on[slot]=2;
-  opm[ch].velocity[slot]=vel;
+  instrument_map[instrument].step[slot]=0;
+  instrument_map[instrument].note[slot]=note;
+  instrument_map[instrument].note_on[slot]=2;
+  instrument_map[instrument].velocity[slot]=vel;
 
   reg_write( 0x01, 0x02 ); /* LFO SYNC */
   reg_write( 0x01, 0x00 );
@@ -235,13 +243,13 @@ void ym2151_note_on( int ch, int note, int vel ) {
   return;
 }
 
-void ym2151_note_off( int ch, int note ) {
+void ym2151_note_off( int instrument, int note ) {
 
   int slot;
 
-  for ( slot=0 ; slot < VFB_MAX_FM_SLOTS ; slot++ ) {
-	if ( opm[ch].note[slot] == note ) {
-	  opm[ch].note_on[slot]=0;
+  for ( slot=0 ; slot < evfb->active_config.instruments[instrument].note_count; slot++ ) {
+	if (instrument_map[instrument].note[slot] == note ) {
+		instrument_map[instrument].note_on[slot]=0;
 	}
   }
 
@@ -258,67 +266,67 @@ void ym2151_set_system_volume( int val ) {
   return;
 }
 
-void ym2151_set_master_volume( int ch, int val ) {
+void ym2151_set_master_volume( int instrument, int val ) {
 
   if ( val < 0 ) val = 0;
   if ( val > 127 ) val = 127;
-  opm[ch].master_volume = val;
+  instrument_map[instrument].master_volume = val;
 
   return;
 }
 
-void ym2151_set_expression( int ch, int val ) {
+void ym2151_set_expression( int instrument, int val ) {
 
   if ( val < 0 ) val = 0;
   if ( val > 127 ) val = 127;
-  opm[ch].expression = val;
+  instrument_map[instrument].expression = val;
 
   return;
 }
 
-void ym2151_set_bend_sensitivity( int ch, int msb, int lsb ) {
+void ym2151_set_bend_sensitivity( int instrument, int msb, int lsb ) {
 
   if ( msb >= 0 ) {
 	if (msb>127) msb=127;
-	opm[ch].bend_sense_m = msb;
+	instrument_map[instrument].bend_sense_m = msb;
   }
   if ( lsb >= 0 ) {
 	if (lsb>127) lsb=127;
-	opm[ch].bend_sense_l = lsb;
+	instrument_map[instrument].bend_sense_l = lsb;
   }
 
   return;
 }
 
-void ym2151_set_bend( int ch, int val ) {
+void ym2151_set_bend( int instrument, int val ) {
 
   val -= 8192;
   if ( val < -8192 ) val = -8192;
   if ( val > 8191 ) val = 8191;
   
-  opm[ch].bend = val;
+  instrument_map[instrument].bend = val;
   return;
 }
 
-void ym2151_set_portament( int ch, int val ) {
+void ym2151_set_portament( int instrument, int val ) {
 
-  opm[ch].portament=val;
+	instrument_map[instrument].portament=val;
   return;
 }
 
-void ym2151_set_portament_on( int ch, int val ) {
+void ym2151_set_portament_on( int instrument, int val ) {
 
-  opm[ch].portament_on=val;
+	instrument_map[instrument].portament_on=val;
   return;
 }
 
-void ym2151_set_hold( int ch, int sw ) {
+void ym2151_set_hold( int instrument, int sw ) {
 
-  opm[ch].hold = sw;
+	instrument_map[instrument].hold = sw;
   return;
 }
 
-void ym2151_set_modulation_depth( int ch, int val ) {
+void ym2151_set_modulation_depth( int instrument, int val ) {
 
   int i;
 
@@ -329,14 +337,14 @@ void ym2151_set_modulation_depth( int ch, int val ) {
   reg_write( 0x18, 212 );
   reg_write( 0x19, val|0x80 ); /* PMD */
   reg_write( 0x19, 9 ); /* AMD */
-  for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
-	reg_write( 0x38+i, 112 );
+  for ( i=0 ; i<evfb->active_config.instruments[instrument].note_count; i++ ) {
+	reg_write( 0x38+i + instrument_map[instrument].base_voice, 112 );
   }
 
   return;
 }
 
-void ym2151_set_voice( int ch, int tone ) {
+void ym2151_set_voice( int instrument, int tone ) {
 
   int i,j,r;
   int slot;
@@ -345,15 +353,15 @@ void ym2151_set_voice( int ch, int tone ) {
   if ( tone > VFB_MAX_TONE_NUMBER ) tone=0;
   v = &evfb->voice[tone];
 
-  for ( slot=0 ; slot < VFB_MAX_FM_SLOTS ; slot++ ) {
+  for ( slot=0 ; slot < evfb->active_config.instruments[instrument].note_count; slot++ ) {
 
-	j = reg_read(  0x20+slot );     /* LR, FL, CON */
-	reg_write( 0x20+slot, (j&0xc0) + v->v0 );
-	opm[ch].algorithm = v->con;
-	opm[ch].slot_mask = v->slot_mask;
+	j = reg_read(  0x20+slot + instrument_map[instrument].base_voice);     /* LR, FL, CON */
+	reg_write( 0x20+slot + instrument_map[instrument].base_voice, (j&0xc0) + v->v0 );
+	instrument_map[instrument].algorithm = v->con;
+	instrument_map[instrument].slot_mask = v->slot_mask;
 	
 	for ( i=0 ; i<4 ; i++ ) {
-	  r = slot + i*8;
+	  r = slot + i*8 + instrument_map[instrument].base_voice;
 	  
 	  reg_write( 0x40+r, v->v1[i] );    /* DT1, MUL */
 	  reg_write( 0x80+r, v->v3[i] );    /* KS, AR */
@@ -361,11 +369,11 @@ void ym2151_set_voice( int ch, int tone ) {
 	  reg_write( 0xc0+r, v->v5[i] );    /* DT2, D2R */
 	  reg_write( 0xe0+r, v->v6[i] );    /* SL, RR */
 	  
-	  opm[ch].total_level[i] = 127 - v->v2[i];
-	  if ( is_vol_set[opm[ch].algorithm][i] == 0 )
-	reg_write( 0x60+r, v->v2[i]&0x7f );   /* TL */
+	  instrument_map[instrument].total_level[i] = 127 - v->v2[i];
+	  if ( is_vol_set[instrument_map[instrument].algorithm][i] == 0 )
+		reg_write( 0x60+r, v->v2[i]&0x7f );   /* TL */
 	  else
-	reg_write( 0x60+r, 127 );             /* TL */
+		reg_write( 0x60+r, 127 );             /* TL */
 	}
   }
 
@@ -378,19 +386,19 @@ static const int ym2151_note[] ={
   0,1,2,4,5,6,8,9,10,12,13,14
 };
 
-void ym2151_set_freq_volume( int ch ) {
+void ym2151_set_freq_volume( int instrument) {
 
   int slot;
 
-  for ( slot=0 ; slot < VFB_MAX_FM_SLOTS ; slot++ ) {
-	freq_write( ch, slot );
-	volume_write( ch, slot );
+  for ( slot=0 ; slot < evfb->active_config.instruments[instrument].note_count ; slot++ ) {
+	freq_write(instrument, slot );
+	volume_write(instrument, slot );
   }
 
   return;
 }
 
-static void freq_write( int ch, int slot ) {
+static void freq_write( int instrument, int slot ) {
 
   int oct, scale, kf;
   int ofs_o, ofs_s, ofs_f;
@@ -403,19 +411,19 @@ static void freq_write( int ch, int slot ) {
   ofs_s = 0; /* scale offset */
   ofs_f = 0; /* detune offset */
 
-  opm[ch].step[slot]++;
+  instrument_map[instrument].step[slot]++;
 
   /* detune jobs */
 
-  c = opm[ch].bend_sense_m * 64 * opm[ch].bend / 8192;
+  c = instrument_map[instrument].bend_sense_m * 64 * instrument_map[instrument].bend / 8192;
   ofs_f += c%64;                      /* detune */
   ofs_s += (c/64)%12;                 /* scale */
   ofs_o += c/(64*12);                 /* octave */
 	
   /* portament jobs */
 	
-  if ( opm[ch].portament != 0 ) {
-	f = opm[ch].portament*opm[ch].step[slot] / 256;
+  if (instrument_map[instrument].portament != 0 ) {
+	f = instrument_map[instrument].portament*instrument_map[instrument].step[slot] / 256;
 	
 	ofs_f += f%64;          /* detune */
 	if ( ofs_f>63 ) {ofs_f-=64;c=1;}
@@ -437,7 +445,7 @@ static void freq_write( int ch, int slot ) {
   while ( kf > 63 ) { kf -= 64; c++; }
   while ( kf <  0 ) { kf += 64; c--; }
 
-  d = opm[ch].note[slot]-15;
+  d = instrument_map[instrument].note[slot]-15;
   if ( d<0 ) d=0;
   scale = c + (d%12) + ofs_s;
   c=0;
@@ -453,18 +461,18 @@ static void freq_write( int ch, int slot ) {
 
   /* key on/off */
 
-  if ( opm[ch].note_on[slot]==2 ) {
-	if ( opm[ch].hold==FLAG_TRUE ) {
-	  reg_write( 0x08, slot );
+  if (instrument_map[instrument].note_on[slot]==2 ) {
+	if (instrument_map[instrument].hold==FLAG_TRUE ) {
+	  reg_write( 0x08, slot + instrument_map[instrument].base_voice);
 	}
-	opm[ch].note_on[slot] = 1;
+	instrument_map[instrument].note_on[slot] = 1;
   }
-  if ( opm[ch].note_on[slot] > 0 ||
-	   ( opm[ch].note_on[slot]==0 && opm[ch].hold==FLAG_TRUE ) ) {
-	key=opm[ch].slot_mask<<3;
+  if (instrument_map[instrument].note_on[slot] > 0 ||
+	   (instrument_map[instrument].note_on[slot]==0 && instrument_map[instrument].hold==FLAG_TRUE ) ) {
+	key= instrument_map[instrument].slot_mask<<3;
   }
   else {
-	opm[ch].note_on[slot]=-1;
+	  instrument_map[instrument].note_on[slot]=-1;
 	key=0;
   }
 
@@ -475,11 +483,11 @@ static void freq_write( int ch, int slot ) {
   f2 = kf*4;
   f3 = key + slot;
 
-  reg_write( 0x28 + slot, f1 );  /* OCT, NOTE */
-  reg_write( 0x30 + slot, f2 );  /* KF */
+  reg_write( 0x28 + slot + instrument_map[instrument].base_voice, f1 );  /* OCT, NOTE */
+  reg_write( 0x30 + slot + instrument_map[instrument].base_voice, f2 );  /* KF */
   reg_write( 0x08,        f3 );  /* KEY ON */
 
-  /*reg_write( ch, 0x38 + slot, 0x50 );   /* PMS:5, AMS:0 */
+  /*reg_write( ch, 0x38 + slot + instrument_map[instrument].base_voice, 0x50 );   /* PMS:5, AMS:0 */
 
   return;
 }
@@ -503,20 +511,20 @@ static int vol_table[128] = {
 	4,  3,  3,  3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  0,  0
 };
 
-static void volume_write( int ch, int slot ) {
+static void volume_write( int instrument, int slot ) {
   int i,r,v;
   int vol;
   int velocity = 0;
 
   /* set volume */
 
-  if ( opm[ch].velocity[slot] > 0 ) 
-	velocity = opm[ch].velocity[slot] / 2 + 63;
+  if (instrument_map[instrument].velocity[slot] > 0 )
+	velocity = instrument_map[instrument].velocity[slot] / 2 + 63;
   for ( i=0 ; i<4 ; i++ ) {
-	r = slot + i*8;
-	if ( is_vol_set[opm[ch].algorithm][i]==0 ) continue;
+	r = slot + i*8 + instrument_map[instrument].base_voice;
+	if ( is_vol_set[instrument_map[instrument].algorithm][i]==0 ) continue;
 	
-	vol = (int)((long)opm[ch].master_volume * opm[ch].expression * velocity * opm[ch].total_level[i]/127/127/127);
+	vol = (int)((long)instrument_map[instrument].master_volume * instrument_map[instrument].expression * velocity * instrument_map[instrument].total_level[i]/127/127/127);
 	vol *= system_volume / 127;
 
 	if ( vol > 127 ) vol = 127;
@@ -538,7 +546,7 @@ static void reg_write( int adr, int val ) {
   if ( adr > 0x0ff ) return;
   if ( adr < 0 ) return;
 
-  opm[0].ym2151_register_map[adr] = val;
+  ym2151_register_map[adr] = val;
 
   ym2151_write_reg( YMPSG, adr, val );
 
@@ -550,7 +558,7 @@ static int reg_read( int adr ) {
   if ( adr > 0xff ) return 0;
   if ( adr < 0 ) return 0;
 
-  return opm[0].ym2151_register_map[adr];
+  return ym2151_register_map[adr];
 }
 
 int setup_configuration(VFB_DATA *vfb) {

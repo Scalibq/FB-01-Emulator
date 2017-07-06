@@ -206,11 +206,10 @@ static int is_on_instrument(VFB_INSTRUMENT* instrument, int ch, int note)
 }
 
 static int note_off( MidiEvent *ev ) {
-
+	int i;
 #ifdef VFB_DEBUG
   fprintf(stdout, "NOTEOFF:  %02x %02x\n", ev->ch, ev->a);
 #endif
-  int i;
 
   for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
   {
@@ -222,11 +221,10 @@ static int note_off( MidiEvent *ev ) {
 }
 
 static int note_on( MidiEvent *ev ) {
-
+	int i;
 #ifdef VFB_DEBUG
   fprintf(stdout, "NOTE_ON:  %02x %02x %02x\n", ev->ch, ev->a, ev->b);
 #endif
-  int i;
 
   if (ev->b > 0)
   {
@@ -258,11 +256,16 @@ static int key_pressure( MidiEvent *ev ) {
 
 static int program_change( MidiEvent *ev ) {
 
+	int i;
 #ifdef VFB_DEBUG
   fprintf(stdout, "PROGCHG:  %02x %02x\n", ev->ch, ev->a);
 #endif
 
-  ym2151_set_voice( ev->ch, ev->a );
+  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+  {
+	  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+		  ym2151_set_voice(i, ev->a);
+  }
 
   return 0;
 }
@@ -277,8 +280,13 @@ static int channel_pressure( MidiEvent *ev ) {
 
 static int pitch_wheel( MidiEvent *ev ) {
 
+	int i;
 
-  ym2151_set_bend( ev->ch, (ev->b<<7)+ev->a );
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	{
+		if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			ym2151_set_bend(i, (ev->b << 7) + ev->a);
+	}
 
 #ifdef VFB_DEBUG
   fprintf(stdout, "PITCH:    %02x %04d\n", ev->ch, (ev->b<<7)+ev->a);
@@ -297,7 +305,11 @@ static int control_change( MidiEvent *ev ) {
 	break;
 
   case SMF_CTRL_MODULATION_DEPTH:
-	ym2151_set_modulation_depth( ev->ch, ev->b );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_modulation_depth(i, ev->b);
+	  }
 	break;
 
   case SMF_CTRL_BLESS_TYPE:
@@ -307,29 +319,46 @@ static int control_change( MidiEvent *ev ) {
 	break;
 
   case SMF_CTRL_PORTAMENT_TIME:
-	ym2151_set_portament( ev->ch, ev->b );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_portament(i, ev->b);
+	  }
 	break;
 
   case SMF_CTRL_DATA_ENTRY_M:
 	if ( rpn_adr[ev->ch] == 0x0000 ) {
 	  /* pitch bend sensitivity */
-	  ym2151_set_bend_sensitivity( ev->ch, ev->b, -1 );
+		for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+		{
+			if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+				ym2151_set_bend_sensitivity(i, ev->b, -1);
+		}
 	}
 	break;
 
   case SMF_CTRL_MAIN_VOLUME:
-	ym2151_set_master_volume( ev->ch, ev->b );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_master_volume(i, ev->b);
+	  }
 	break;
 
   case SMF_CTRL_BALANCE_CTRL:
 	break;
 
   case SMF_CTRL_PANPOT:
+	  // TODO: Move into YM2151 emulation? Was in mixing of multiple YM2151 chips, but now removed
 	pcm8_pan( ev->ch, ev->b );
 	break;
 
   case SMF_CTRL_EXPRESSION:
-	ym2151_set_expression( ev->ch, ev->b );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_expression(i, ev->b);
+	  }
 	break;
 
 
@@ -339,21 +368,37 @@ static int control_change( MidiEvent *ev ) {
   case SMF_CTRL_DATA_ENTRY_L:
 	if ( rpn_adr[ev->ch] == 0x0000 ) {
 	  /* pitch bend sensitivity */
-	  ym2151_set_bend_sensitivity( ev->ch, -1, ev->b );
+		for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+		{
+			if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+				ym2151_set_bend_sensitivity(i, -1, ev->b);
+		}
 	}
 	break;
 
 
   case SMF_CTRL_HOLD1:
-	ym2151_set_hold( ev->ch,  ev->b>64?FLAG_TRUE:FLAG_FALSE );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_hold(i, ev->b > 64 ? FLAG_TRUE : FLAG_FALSE);
+	  }
 	break;
 
   case SMF_CTRL_PORTAMENT:
-	ym2151_set_portament_on( ev->ch, ev->b>64?FLAG_TRUE:FLAG_FALSE );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_portament_on(i, ev->b > 64 ? FLAG_TRUE : FLAG_FALSE);
+	  }
 	break;
 
   case SMF_CTRL_SUSTENUTE:
-	ym2151_set_hold( ev->ch,  ev->b>64?FLAG_TRUE:FLAG_FALSE );
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_set_hold(i, ev->b > 64 ? FLAG_TRUE : FLAG_FALSE);
+	  }
 	break;
 
   case SMF_CTRL_SOFT_PEDAL:
@@ -377,7 +422,6 @@ static int control_change( MidiEvent *ev ) {
 
   case SMF_CTRL_PHASER:
 	break;
-
 
   case SMF_CTRL_DATA_INCREMENT:
 	break;
@@ -411,15 +455,25 @@ static int control_change( MidiEvent *ev ) {
 
 
   case SMF_CTRL_ALL_SOUND_OFF:
-	ym2151_all_note_off(ev->ch);
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_all_note_off(i);
+	  }
 	reset_ym2151();
 	break;
 
   case SMF_CTRL_RESET_ALL_CTRL:
 	reset_ym2151();
-	ym2151_set_hold( ev->ch,  FLAG_FALSE );
-	ym2151_set_expression( ev->ch, 127 );
-	ym2151_set_bend( ev->ch, 8192 );
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	{
+		if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+		{
+			ym2151_set_hold(i, FLAG_FALSE);
+			ym2151_set_expression(i, 127);
+			ym2151_set_bend(i, 8192);
+		}
+	}
 	for ( i=0 ; i<VFB_MAX_CHANNEL_NUMBER ; i++ ) {
 	  rpn_adr[i]  = 0xffff;
 	  nrpn_adr[i] = 0xffff;
@@ -430,7 +484,11 @@ static int control_change( MidiEvent *ev ) {
 	break;
 
   case SMF_CTRL_ALL_NOTE_OFF:
-	ym2151_all_note_off(ev->ch);
+	  for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	  {
+		  if (evfb->active_config.instruments[i].midi_channel == ev->ch)
+			  ym2151_all_note_off(i);
+	  }
 	break;
 
   case SMF_CTRL_OMNI_MODE_OFF:
