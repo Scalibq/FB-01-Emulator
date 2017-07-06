@@ -100,6 +100,21 @@ static const int is_vol_set[8][4]={
 
 /* ------------------------------------------------------------------- */
 
+extern int allocate_base_voices(void)
+{
+	int i;
+	int base_voice = 0;
+
+	// TODO: sanity check if we aren't allocating too many voices
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	{
+		instrument_map[i].base_voice = base_voice;
+		base_voice += evfb->active_config.instruments[i].note_count;
+	}
+
+	return 0;
+}
+
 static int is_already_opm_allocated = FLAG_FALSE;
 static int ym2151_reg_init( VFB_DATA *vfb ) {
   int i,j;
@@ -147,7 +162,6 @@ static int ym2151_reg_init( VFB_DATA *vfb ) {
 	
 	reg_write( 0x1b, 2 );                 /* wave form: triangle */
 	reg_write( 0x18, 196 );               /* frequency */
-
 
 	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
 	{
@@ -229,7 +243,7 @@ void ym2151_note_on( int instrument, int note, int vel ) {
 	  longest_slot = slot;
 	}
   }
-  if ( slot == VFB_MAX_FM_SLOTS )
+  if ( slot == evfb->active_config.instruments[instrument].note_count)
 	slot = longest_slot;
 
   instrument_map[instrument].step[slot]=0;
@@ -355,7 +369,7 @@ void ym2151_set_voice( int instrument, int tone ) {
 
   for ( slot=0 ; slot < evfb->active_config.instruments[instrument].note_count; slot++ ) {
 
-	j = reg_read(  0x20+slot + instrument_map[instrument].base_voice);     /* LR, FL, CON */
+	j = reg_read(  0x20+slot + instrument_map[instrument].base_voice );     /* LR, FL, CON */
 	reg_write( 0x20+slot + instrument_map[instrument].base_voice, (j&0xc0) + v->v0 );
 	instrument_map[instrument].algorithm = v->con;
 	instrument_map[instrument].slot_mask = v->slot_mask;
@@ -386,7 +400,7 @@ static const int ym2151_note[] ={
   0,1,2,4,5,6,8,9,10,12,13,14
 };
 
-void ym2151_set_freq_volume( int instrument) {
+void ym2151_set_freq_volume( int instrument ) {
 
   int slot;
 
@@ -485,7 +499,7 @@ static void freq_write( int instrument, int slot ) {
 
   reg_write( 0x28 + slot + instrument_map[instrument].base_voice, f1 );  /* OCT, NOTE */
   reg_write( 0x30 + slot + instrument_map[instrument].base_voice, f2 );  /* KF */
-  reg_write( 0x08,        f3 );  /* KEY ON */
+  reg_write( 0x08,        f3 + instrument_map[instrument].base_voice);  /* KEY ON */
 
   /*reg_write( ch, 0x38 + slot + instrument_map[instrument].base_voice, 0x50 );   /* PMS:5, AMS:0 */
 

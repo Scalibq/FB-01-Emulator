@@ -86,9 +86,9 @@ int vfb01_init( VFB_DATA *vfb, int sample_buffer_size ) {
   if ( evfb == NULL && vfb != NULL ) evfb=vfb;
   if ( pcm8_open( vfb, sample_buffer_size ) ) return 1;
 
+  if (setup_configuration(vfb))return 1;
   if ( setup_voices( vfb ) ) return 1;
   if ( setup_ym2151( vfb ) ) return 1;
-  if ( setup_configuration(vfb) )return 1;
 
   //set_signals();
   priority_init();
@@ -110,9 +110,6 @@ int vfb01_init( VFB_DATA *vfb, int sample_buffer_size ) {
 void vfb01_doMidiEvent( VFB_DATA *vfb, MidiEvent* e ) {
 
   int i;
-
-	// TODO: MIDI to YM2164 voice mapping
-	if ( e->ch >= 1 ) return;
 
 	switch ( e->type ) {
 	case MIDI_NOTEOFF:
@@ -151,7 +148,9 @@ void vfb01_doMidiEvent( VFB_DATA *vfb, MidiEvent* e ) {
 	  break;
 	}
 
-	ym2151_set_freq_volume(0);
+	// Update all instruments
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+		ym2151_set_freq_volume(i);
 }
 
 #if 0
@@ -517,7 +516,40 @@ static int control_change( MidiEvent *ev ) {
 
 void param_change_instrument(MidiEvent* ev)
 {
-	OutputDebugString("FB01: Parameter Change\n");
+	// A1: F0 43 75 <0000ssss> <00011iii> <00pppppp> <0ddddddd> F7
+	// A2: F0 43 75 <0000ssss> <00011iii> <01pppppp> <0000dddd> <0000dddd> F7
+	int s, i, p, d;
+
+	char buf[1024];
+
+	s = ev->ex_buf[2] & 0x0F;
+	i = ev->ex_buf[3] & 0x07;
+	p = ev->ex_buf[4] & 0x7F;
+	d = ev->ex_buf[5];
+
+	if (p & 0x40)
+		d |= ev->ex_buf[6] << 4;
+
+
+	sprintf(buf, "FB01: Parameter Change, s: %u, i: %u, p: %02X, d: %02X \n", s, i, p, d);
+	OutputDebugString(buf);
+
+	switch (p)
+	{
+	case 0x00:
+		evfb->active_config.instruments[i].note_count = d;
+		allocate_base_voices();
+		break;
+	case 0x01:
+		evfb->active_config.instruments[i].midi_channel = d;
+		break;
+	case 0x02:
+		evfb->active_config.instruments[i].key_high_limit = d;
+		break;
+	case 0x03:
+		evfb->active_config.instruments[i].key_low_limit = d;
+		break;
+	}
 }
 
 void voice_bulk_data_dump(MidiEvent* ev)
@@ -602,7 +634,42 @@ void single_voice_bulk_data_store(MidiEvent* ev)
 
 void param_change_channel(MidiEvent* ev)
 {
+	// D1: F0 43 <0001nnnn> 15 <00pppppp> <0ddddddd> F7
+	// D2: F0 43 <0001nnnn> 15 <01pppppp> <0000dddd> <0000dddd> F7
+
+	int i, n, p, d;
+
 	OutputDebugString("FB01: Parameter change by MIDI channel specification\n");
+
+	n = ev->ex_buf[2] & 0x0F;
+	p = ev->ex_buf[3] & 0x7F;
+	d = ev->ex_buf[4];
+
+	if (p & 0x40)
+		d |= ev->ex_buf[5] << 4;
+
+	for (i = 0; i < VFB_MAX_FM_SLOTS; i++)
+	{
+		if (evfb->active_config.instruments[i].midi_channel == n)
+		{
+			switch (p)
+			{
+			case 0x00:
+				evfb->active_config.instruments[i].note_count = d;
+				allocate_base_voices();
+				break;
+			case 0x01:
+				evfb->active_config.instruments[i].midi_channel = d;
+				break;
+			case 0x02:
+				evfb->active_config.instruments[i].key_high_limit = d;
+				break;
+			case 0x03:
+				evfb->active_config.instruments[i].key_low_limit = d;
+				break;
+			}
+		}
+	}	
 }
 
 void event_list(MidiEvent* ev)
