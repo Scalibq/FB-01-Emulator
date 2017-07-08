@@ -677,6 +677,23 @@ void event_list(MidiEvent* ev)
 	OutputDebugString("FB01: Event list\n");
 }
 
+void unknown_sysex(MidiEvent* ev)
+{
+	char buf[1024];
+
+	sprintf(buf, "FB01: Unknown sysex: F0 %02X %02X %02X %02X %02X %02X %02X\n",
+		ev->ex_buf[0],
+		ev->ex_buf[1],
+		ev->ex_buf[2],
+		ev->ex_buf[3],
+		ev->ex_buf[4],
+		ev->ex_buf[5],
+		ev->ex_buf[6]
+	);
+
+	OutputDebugString(buf);
+}
+
 static int fb01_exclusive( MidiEvent* ev )
 {
 	/*
@@ -802,6 +819,9 @@ static int fb01_exclusive( MidiEvent* ev )
 					// A4: F0 43 75 <0000ssss> <00101iii> 00 <00dddddd> F7
 					store_in_voice_RAM(ev);
 					break;
+				default:
+					unknown_sysex(ev);
+					break;
 				}
 				break;
 			case 0x10:
@@ -835,6 +855,9 @@ static int fb01_exclusive( MidiEvent* ev )
 					// B8: F0 43 75 <0000ssss> 20 40 <000ddddd> F7
 					config_data_store(ev);
 					break;
+				default:
+					unknown_sysex(ev);
+					break;
 				}
 				break;
 			case 0xC0:
@@ -857,11 +880,17 @@ static int fb01_exclusive( MidiEvent* ev )
 					// C5: F0 43 75 <0000ssss> 00 03 00 14 00 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
 					config_16_memory_store(ev);
 					break;
+				default:
+					unknown_sysex(ev);
+					break;
 				}
 				break;
 			case 0x08:
 				// C6: F0 43 75 <0000ssss> <00001iii> 00 00 01 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
 				single_voice_bulk_data_store(ev);
+				break;
+			default:
+				unknown_sysex(ev);
 				break;
 			}
 		}
@@ -897,6 +926,9 @@ static int fb01_exclusive( MidiEvent* ev )
 				param_change_channel(ev);
 				break;
 			}
+			break;
+		default:
+			unknown_sysex(ev);
 			break;
 		}
 	}
