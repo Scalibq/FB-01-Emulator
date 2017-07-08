@@ -514,6 +514,23 @@ static int control_change( MidiEvent *ev ) {
 
 /* ------------------------------------------------------------------- */
 
+void unknown_sysex(MidiEvent* ev)
+{
+	char buf[1024];
+
+	sprintf(buf, "FB01: Unknown sysex: F0 %02X %02X %02X %02X %02X %02X %02X\n",
+		ev->ex_buf[0],
+		ev->ex_buf[1],
+		ev->ex_buf[2],
+		ev->ex_buf[3],
+		ev->ex_buf[4],
+		ev->ex_buf[5],
+		ev->ex_buf[6]
+	);
+
+	OutputDebugString(buf);
+}
+
 void param_change_instrument(MidiEvent* ev)
 {
 	// A1: F0 43 75 <0000ssss> <00011iii> <00pppppp> <0ddddddd> F7
@@ -677,21 +694,79 @@ void event_list(MidiEvent* ev)
 	OutputDebugString("FB01: Event list\n");
 }
 
-void unknown_sysex(MidiEvent* ev)
+void node_message(MidiEvent* ev)
 {
+	// C7: F0 43 75 <0000ssss> 00 00 <0000000b> ... F7
 	char buf[1024];
+	char name[9] = { 0 };
+	int len, i;
+	uint8_t format, destination;
+	format = ev->ex_buf[4];
+	destination = ev->ex_buf[5];
+	uint8_t *pSrc, *pData;
+	uint8_t data[8192];
 
-	sprintf(buf, "FB01: Unknown sysex: F0 %02X %02X %02X %02X %02X %02X %02X\n",
-		ev->ex_buf[0],
-		ev->ex_buf[1],
-		ev->ex_buf[2],
-		ev->ex_buf[3],
-		ev->ex_buf[4],
-		ev->ex_buf[5],
-		ev->ex_buf[6]
-	);
+	switch (format)
+	{
+	case 0:
+		// Voice data bank
+		len = ev->ex_buf[6] << 8;
+		len |= ev->ex_buf[7];
 
-	OutputDebugString(buf);
+		sprintf(buf, "FB01: Voice bank data, length: %u, destination: %u, checksum: %02X, end: %02X\n",
+			len, destination, ev->ex_buf[7 + len], ev->ex_buf[8 + len]);
+		OutputDebugString(buf);
+
+		pSrc = ev->ex_buf + 8;
+		pData = data;
+
+		// Decode all bytes
+		for (i = 0; i < len; i += 2)
+		{
+			*pData = *pSrc++;
+			*pData++ |= *pSrc++ << 4;
+		}
+
+		pData = data;
+
+		// Parse voice header
+		memcpy(name, pData, 8);
+		sprintf(buf, "Voice bank name: %s\n", name);
+		OutputDebugString(buf);
+
+		// Voices only have 7 byte names
+		name[7] = 0;
+
+		// Skip past header
+		pData += 0x20;
+		len -= 0x40;
+
+		// Parse all voices
+		while (len > 0)
+		{
+			memcpy(name, pData, 7);
+			sprintf(buf, "Voice name: %s\n", name);
+			OutputDebugString(buf);
+
+			len -= 64*2;
+			pData += 64;
+		}
+
+		pData = pSrc;
+
+		sprintf(buf, "FB01: End of message: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+			pData[0], pData[1], pData[2], pData[3], pData[4], pData[5], pData[6], pData[7]);
+
+		OutputDebugString(buf);
+		break;
+	case 6:
+		// Configuration-2
+		OutputDebugString("FB01: Configuration-2\n");
+		break;
+	default:
+		unknown_sysex(ev);
+		break;
+	}
 }
 
 static int fb01_exclusive( MidiEvent* ev )
@@ -754,6 +829,12 @@ static int fb01_exclusive( MidiEvent* ev )
 		F0 43 75 <0000ssss> 00 03 00 14 00 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
 	6) 1 voice bulk data
 		F0 43 75 <0000ssss> <00001iii> 00 00 01 00 <0000dddd> <0000dddd> ... <0000dddd> <0000dddd> <0eeeeeee> F7
+
+	Only documented for IMFC:
+	7) Node message, Voice bank data
+		F0 43 75 <0000ssss> 00 00 <0000000b> ... F7
+	8) Node message, Configuration-2
+		F0 43 75 <0000ssss> 00 06 00 ... F7
 
 	D: Channel message
 	1) Parameter Change (1 byte) by MIDI channel specification
@@ -868,6 +949,10 @@ static int fb01_exclusive( MidiEvent* ev )
 			case 0x00:
 				switch (ev->ex_buf[4])
 				{
+				case 0x00:
+					// C7: F0 43 75 <0000ssss> 00 00 <0000000b> ... F7
+					node_message(ev);
+					break;
 				case 0x01:
 					// C3: F0 43 75 <0000ssss> 00 01 00 01 20 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
 					current_config_store(ev);
@@ -880,6 +965,9 @@ static int fb01_exclusive( MidiEvent* ev )
 					// C5: F0 43 75 <0000ssss> 00 03 00 14 00 <0ddddddd> ... <0ddddddd> <0eeeeeee> F7
 					config_16_memory_store(ev);
 					break;
+				case 0x06:
+					// C8
+					node_message(ev);
 				default:
 					unknown_sysex(ev);
 					break;
