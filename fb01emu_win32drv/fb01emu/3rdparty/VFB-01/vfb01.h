@@ -38,6 +38,8 @@
 #define VFB_MAX_FM_SLOTS              8
 #define VFB_MAX_TONE_NUMBER         256
 #define VFB_MAX_CONFIGURATIONS       20
+#define VFB_NUM_VOICE_BANKS           7
+#define VFB_NUM_VOICES               48
 
 #define FLAG_TRUE                     1
 #define FLAG_FALSE                    0
@@ -178,7 +180,8 @@ typedef struct _VFB_DATA {
 	unsigned char version_2[VFB_VERSION_TEXT_SIZE];
 
 	VOICE_DATA voice[VFB_MAX_TONE_NUMBER];
-	VFB_CONFIGURATION configuration[VFB_MAX_CONFIGURATIONS];
+	VFB_CONFIGURATION configuration[VFB_MAX_CONFIGURATIONS];			// First 16 configurations are RAM, rest is ROM
+	VFB_VOICE_DATA voice_banks[VFB_NUM_VOICE_BANKS][VFB_NUM_VOICES];	// First two banks are RAM, rest is ROM
 
 	char *voice_parameter_file;
 
