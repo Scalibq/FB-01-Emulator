@@ -141,7 +141,7 @@ typedef struct _VFB_OPERATOR_BLOCK {
 						// [0]: <xyyy0000>: x = keyboard level scaling type bit#0, y = velocity sensitivity (TL)
 						// [1]: <xxxxyyyy>: x = keyboard level scaling depth, y = adjust for TL
 						// [2]: <xyyyzzzz>: x = keyboard level scaling type bit#1, y = DT1, z = multiple
-						// [3]: <xx0yyyyy>: x = keyboard rate scaling depth, y= AR
+						// [3]: <xx0yyyyy>: x = keyboard rate scaling depth, y = AR
 						// [4]: <xyyzzzzz>: x = 0: modulator, disable/AM, 1: carrier, enable/AM, y = velocity sensitivity (AR), z = D1R
 						// [5]: <xx0yyyyy>: x = DT2, y = D2R
 						// [6]: <xxxxyyyy>: x = SL, y = RR

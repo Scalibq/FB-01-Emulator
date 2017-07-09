@@ -476,13 +476,13 @@ static void freq_write( int instrument, int slot ) {
   /* key on/off */
 
   if (instrument_map[instrument].note_on[slot]==2 ) {
-	if (instrument_map[instrument].hold==FLAG_TRUE ) {
+	//if (instrument_map[instrument].hold==FLAG_TRUE ) {
 	  reg_write( 0x08, slot + instrument_map[instrument].base_voice);
-	}
+	//}
 	instrument_map[instrument].note_on[slot] = 1;
   }
   if (instrument_map[instrument].note_on[slot] > 0 ||
-	   (instrument_map[instrument].note_on[slot]==0 && instrument_map[instrument].hold==FLAG_TRUE ) ) {
+	   (instrument_map[instrument].note_on[slot]==0 ) ) { // && instrument_map[instrument].hold==FLAG_TRUE ) ) {
 	key= instrument_map[instrument].slot_mask<<3;
   }
   else {

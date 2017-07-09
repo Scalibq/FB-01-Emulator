@@ -107,6 +107,53 @@ int vfb01_init( VFB_DATA *vfb, int sample_buffer_size ) {
   return 0;
 }
 
+void convert_voice(VFB_VOICE_DATA* pSrc, int num )
+{
+	VOICE_DATA* v;
+	int i;
+
+	v = &evfb->voice[num];
+
+	// Convert voice data
+	v->voice_number = num;
+	v->fl = (pSrc->feedback_level_algorithm >> 2) & 0xF;              /* feed back */
+	v->con = (pSrc->feedback_level_algorithm) & 0x3;             /* connection:algorithm */
+	v->slot_mask = pSrc->operator_enable >> 3;       /* slot mask */
+
+	for (i = 0; i < 4; i++)
+	{
+		v->dt1[i] = 0;// pSrc->transpose;          /* detune 1 */
+		v->dt2[i] = 0;// (pSrc->operator_block[i].params[2] >> 4) & 0x7;          /* detune 2 */
+		v->mul[i] = pSrc->operator_block[i].params[2] & 0xF;          /* multiple */
+		v->tl[i] = pSrc->operator_block[i].total_level;           /* total level */
+		v->ks[i] = 0;// pSrc->operator_block[i].params[6];           /* key scale */
+		v->ar[i] = pSrc->operator_block[i].params[3] & 0x1F;           /* attack rate */
+		v->ame[i] = pSrc->operator_block[i].params[4] >> 7;          /* amplitude modulation enable */
+		v->d1r[i] = pSrc->operator_block[i].params[4] & 0x1F;          /* decay rate 1 */
+		v->d2r[i] = pSrc->operator_block[i].params[5] & 0x1F;          /* decay rate 2 ( sustain rate ) */
+		v->rr[i] = pSrc->operator_block[i].params[6] & 0xF;           /* release rate */
+		v->sl[i] = pSrc->operator_block[i].params[6] >> 4;           /* sustain level */
+	}
+
+	// Initialize voice
+	//v->v0 = (v->fl & 0x07 << 3) | (v->con & 0x07);
+	v->v0 = pSrc->feedback_level_algorithm;
+	for (i = 0; i<4; i++) {
+		//v->v1[i] = (v->dt1[i] & 0x07 << 4) | (v->mul[i] & 0x0f);
+		v->v1[i] = pSrc->operator_block[i].params[2];
+		//v->v2[i] = v->tl[i] & 0x7f;
+		v->v2[i] = pSrc->operator_block[i].total_level;
+		//v->v3[i] = (v->ks[i] & 0x03 << 6) | (v->ar[i] & 0x1f);
+		v->v3[i] = pSrc->operator_block[i].params[3];
+		//v->v4[i] = (v->ame[i] & 0x01 << 7) | (v->d1r[i] & 0x1f);
+		v->v4[i] = pSrc->operator_block[i].params[4];
+		//v->v5[i] = (v->dt2[i] & 0x03 << 6) | (v->d2r[i] & 0x1f);
+		v->v5[i] = pSrc->operator_block[i].params[5];
+		//v->v6[i] = (v->sl[i] & 0x0f << 4) | (v->rr[i] & 0x0f);
+		v->v6[i] = pSrc->operator_block[i].params[6];
+	}
+}
+
 void vfb01_doMidiEvent( VFB_DATA *vfb, MidiEvent* e ) {
 
   int i;
@@ -758,6 +805,16 @@ void node_message(MidiEvent* ev)
 			pData[0], pData[1], pData[2], pData[3], pData[4], pData[5], pData[6], pData[7]);
 
 		OutputDebugString(buf);
+
+		// Store data in the proper voice bank
+		memcpy(evfb->voice_banks[destination], data, sizeof(VFB_VOICE_BANK));
+
+		// Convert to 'native' VFB format
+		// TODO: Use real FB-01 voice data directly
+		for (i = 0; i < 48; i++)
+		{
+			convert_voice(&evfb->voice_banks[destination][i], i);
+		}
 		break;
 	case 6:
 		// Configuration-2
