@@ -94,6 +94,16 @@ typedef enum _VFB_INPUT_CONTROLLER {
 	VFB_IC_FOOT_CONTROLLER
 } VFB_INPUT_CONTROLLER;
 
+typedef enum _VFB_KEY_RECEIVE_MODE {
+	VFB_KM_ALL,
+	VFB_KM_EVEN,
+	VFB_KM_ODD
+} VFB_KEY_RECEIVE_MODE;
+
+/* Structures that correspond with actual data as stored in SysEx messages/internal memory */
+
+#pragma pack(push)
+#pragma pack(1)
 typedef struct _VFB_INSTRUMENT {
 	uint8_t note_count;
 	uint8_t midi_channel;
@@ -109,14 +119,8 @@ typedef struct _VFB_INSTRUMENT {
 	uint8_t portamento_time;
 	uint8_t pitch_bend_range;
 	uint8_t mono_poly;
-	VFB_INPUT_CONTROLLER input_controller;
+	uint8_t input_controller;	// VFB_INPUT_CONTROLLER
 } VFB_INSTRUMENT;
-
-typedef enum _VFB_KEY_RECEIVE_MODE {
-	VFB_KM_ALL,
-	VFB_KM_EVEN,
-	VFB_KM_ODD
-} VFB_KEY_RECEIVE_MODE;
 
 typedef struct _VFB_CONFIGURATION {
 	uint8_t name[8];
@@ -125,9 +129,48 @@ typedef struct _VFB_CONFIGURATION {
 	uint8_t AMD;
 	uint8_t PMD;
 	uint8_t LFO_waveform;
-	VFB_KEY_RECEIVE_MODE key_receive_mode;
+	uint8_t key_receive_mode;	// VFB_KEY_RECEIVE_MODE
 	VFB_INSTRUMENT instruments[VFB_MAX_FM_SLOTS];
 } VFB_CONFIGURATION;
+
+typedef struct _VFB_OPERATOR_BLOCK {
+	uint8_t total_level;
+	uint8_t params[7];	// Data packed into bits:
+						// [0]: <xyyy0000>: x = keyboard level scaling type bit#0, y = velocity sensitivity (TL)
+						// [1]: <xxxxyyyy>: x = keyboard level scaling depth, y = adjust for TL
+						// [2]: <xyyyzzzz>: x = keyboard level scaling type bit#1, y = DT1, z = multiple
+						// [3]: <xx0yyyyy>: x = keyboard rate scaling depth, y= AR
+						// [4]: <xyyzzzzz>: x = 0: modulator, disable/AM, 1: carrier, enable/AM, y = velocity sensitivity (AR), z = D1R
+						// [5]: <xx0yyyyy>: x = DT2, y = D2R
+						// [6]: <xxxxyyyy>: x = SL, y = RR
+} VFB_OPERATOR_BLOCK;
+
+typedef struct _VFB_VOICE_DATA {
+	uint8_t name[7];
+	uint8_t user_code;
+	uint8_t LFO_speed;
+	uint8_t LFO_load_enable_amd;		// MSB is LFO load enable, other bits are amd
+	uint8_t LFO_sync_pmd;				// MSD is LFO sync on note on, other bits are pmd
+	uint8_t operator_enable;			// <0wxyz000>: w = enable op #1, x = enable op #2, y = enable op #3 z = enable op #4
+	uint8_t feedback_level_algorithm;	// <00xxxxyy>: x = feedback level, y = algorithm
+	uint8_t pms_ams;					// <0xxx00yy>: x = pms, y = ams
+	uint8_t LFO_waveform;				// <0xxx0000>: x = LFO wave form
+	uint8_t transpose;					// 2's complement, 100 cents resolution
+	VFB_OPERATOR_BLOCK operator_block[4];
+	uint8_t reserved1[10];
+	uint8_t voice_function[2];			// Data packed into bits:
+										// [0]: <xyyyyyyy>: x = poly/mono mode, y = portamento time
+										// [1]: <0xxxyyyy>: x = input controller assignment to PMD, y = pitchbender range
+	uint8_t reserved2[4];
+} VFB_VOICE_DATA;
+
+typedef struct _VFB_VOICE_BANK {
+	uint8_t name[8];
+	uint8_t reserved[8];
+	VFB_VOICE_DATA voice_data[48];
+} VFB_VOICE_BANK;
+
+#pragma pack(pop)
 
 typedef struct _VFB_DATA {
   
