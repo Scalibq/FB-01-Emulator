@@ -122,6 +122,7 @@ typedef struct _VFB_INSTRUMENT {
 	uint8_t pitch_bend_range;
 	uint8_t mono_poly;
 	uint8_t input_controller;	// VFB_INPUT_CONTROLLER
+	uint8_t reserved;
 } VFB_INSTRUMENT;
 
 typedef struct _VFB_CONFIGURATION {
@@ -132,6 +133,7 @@ typedef struct _VFB_CONFIGURATION {
 	uint8_t PMD;
 	uint8_t LFO_waveform;
 	uint8_t key_receive_mode;	// VFB_KEY_RECEIVE_MODE
+	uint8_t reserved[18];
 	VFB_INSTRUMENT instruments[VFB_MAX_FM_SLOTS];
 } VFB_CONFIGURATION;
 
