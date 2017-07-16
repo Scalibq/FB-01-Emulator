@@ -170,7 +170,7 @@ typedef struct _VFB_VOICE_DATA {
 
 typedef struct _VFB_VOICE_BANK {
 	uint8_t name[8];
-	uint8_t reserved[8];
+	uint8_t reserved[24];
 	VFB_VOICE_DATA voice_data[48];
 } VFB_VOICE_BANK;
 
