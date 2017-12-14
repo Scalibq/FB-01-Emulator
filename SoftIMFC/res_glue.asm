@@ -75,8 +75,22 @@ amis_hook_table:
 
         even
 _emm386_table:
-        dw 0x0388, emm386_handler
-        dw 0x0389, emm386_handler
+        dw 0x2A20, emm386_handler
+        dw 0x2A21, emm386_handler
+        dw 0x2A22, emm386_handler
+        dw 0x2A23, emm386_handler
+        dw 0x2A24, emm386_handler
+        dw 0x2A25, emm386_handler
+        dw 0x2A26, emm386_handler
+        dw 0x2A27, emm386_handler
+        dw 0x2A28, emm386_handler
+        dw 0x2A29, emm386_handler
+        dw 0x2A2A, emm386_handler
+        dw 0x2A2B, emm386_handler
+        dw 0x2A2C, emm386_handler
+        dw 0x2A2D, emm386_handler
+        dw 0x2A2E, emm386_handler
+        dw 0x2A2F, emm386_handler
 
 emm386_handler:
         call emulate_imfc_io_
@@ -90,9 +104,9 @@ _retf:  retf
 
 _qemm_handler:
         iisp_header qemm_next_handler
-        cmp dx, 0x0388
+        cmp dx, 0x2A20
         jl @@qemm_ignore
-        cmp dx, 0x0389
+        cmp dx, 0x2A2F
         jg @@qemm_ignore
         and cx, 4
         push ds

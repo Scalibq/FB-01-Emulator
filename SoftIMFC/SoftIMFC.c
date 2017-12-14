@@ -184,7 +184,7 @@ static bool setup_emm386() {
     return false;
   }
 
-  err = emm386_virtualize_io(0x388, 0x389, 2, &emm386_table, (int)&resident_end, &v);
+  err = emm386_virtualize_io(0x2A2F, 0x2A2F, 16, &emm386_table, (int)&resident_end, &v);
   if (err) {
     return false;
   }
@@ -224,6 +224,7 @@ static void __far *get_qpi_entry_point() {
 static bool setup_qemm() {
   void __far *qpi;
   int version;
+  int i;
 
   qpi = get_qpi_entry_point();
   if (!qpi) {
@@ -233,13 +234,17 @@ static bool setup_qemm() {
   if (version < 0x0703) {
     return false;
   }
-
-  if (qpi_get_port_trap(&qpi, 0x388) || qpi_get_port_trap(&qpi, 0x389)) {
-    cputs("Some other program is already intercepting Adlib I/O\r\n");
-    exit(1);
+  
+  for (i = 0; i < 16; i++)
+  {
+	if (qpi_get_port_trap(&qpi, 0x2A20 + i)) {
+      cputs("Some other program is already intercepting IMFC I/O\r\n");
+      exit(1);
+	}
   }
-  qpi_set_port_trap(&qpi, 0x388);
-  qpi_set_port_trap(&qpi, 0x389);
+  
+  for (i = 0; i < 16; i++)
+	qpi_set_port_trap(&qpi, 0x2A20 + i);
 
   qemm_handler.next_handler = qpi_get_io_callback(&qpi);
   qpi_set_io_callback(&qpi, &qemm_handler);
@@ -252,14 +257,15 @@ static bool setup_qemm() {
 static bool shutdown_qemm(struct config __far *cfg) {
   void __far *qpi;
   struct iisp_header __far *callback;
+  int i;
 
   qpi = get_qpi_entry_point();
   if (!qpi) {
     return false;
   }
 
-  qpi_clear_port_trap(&qpi, 0x388);
-  qpi_clear_port_trap(&qpi, 0x389);
+  for (i = 0; i < 16; i++)
+    qpi_clear_port_trap(&qpi, 0x2A20 + i);
 
   callback = qpi_get_io_callback(&qpi);
   if (FP_SEG(callback) == FP_SEG(cfg)) {
