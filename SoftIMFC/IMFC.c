@@ -25,6 +25,7 @@
 //#include "cpu.h"
 //#include "support.h"
 #include <stdint.h>
+#include "MPU401.h"
 
 typedef uint8_t Bit8u, bool;
 typedef uint16_t Bit16u;
@@ -316,6 +317,9 @@ void IMF_MIDIFilter(Bit8u data)
 
 void InitIMFC(void)
 {
+	// Put the MPU401 in UART mode
+	set_uart(0x330);
+	
 	// Send configuration commands to put FB-01 into IMFC-like state
 	MIDI_RawOutBuffer(disableMemProtect, sizeof(disableMemProtect));
 	MIDI_RawOutBuffer(setSysChannel1, sizeof(setSysChannel1));
@@ -420,5 +424,5 @@ unsigned emulate_imfc_io(int port, int is_write, unsigned ax)
 
 void MIDI_RawOutByte(Bit8u data)
 {
-	// TODO
+	put_mpu_out(0x330, data);
 }
