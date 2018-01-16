@@ -1,4 +1,8 @@
-#include <conio.h>
+#pragma code_seg("RESIDENT")
+#pragma data_seg("RESIDENT", "CODE")
+
+//#include <conio.h>
+#include "resident.h"
 #include "MPU401.h"
 
 /************************** is_input() ****************************

@@ -11,7 +11,6 @@
 #define STR(x) #x
 #define XSTR(x) STR(x)
 
-
 int amis_install_check(char amis_id, struct amis_info *info);
 #pragma aux amis_install_check =                \
   "xchg al, ah"                                 \
@@ -28,7 +27,6 @@ struct amis_info {
   char __far *signature;
   union version version;
 };
-
 
 int ioctl_read(int handle, char __near *buf, int nbytes);
 #pragma aux ioctl_read =                        \
@@ -184,7 +182,7 @@ static bool setup_emm386() {
     return false;
   }
 
-  err = emm386_virtualize_io(0x2A2F, 0x2A2F, 16, &emm386_table, (int)&resident_end, &v);
+  err = emm386_virtualize_io(0x2A20, 0x2A2F, 16, &emm386_table, (int)&resident_end, &v);
   if (err) {
     return false;
   }
@@ -432,6 +430,9 @@ int main(void) {
     *env_seg = 0;
 
     _dos_keep(0, ((char __huge *)&resident_end - (char __huge *)(_psp :> 0) + 15) / 16);
+	
+	// Initialize virtual IMFC
+	InitIMFC();
   }
   return 0;
 }

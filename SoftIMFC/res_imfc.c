@@ -3,17 +3,8 @@
 
 #include "resident.h"
 
-
 struct config RESIDENT config;
 
-
-/* I/O port access */
-
-extern unsigned inp(unsigned port);
-extern unsigned outp(unsigned port, unsigned value);
-#pragma intrinsic(inp, outp)
-#pragma aux inp modify nomemory;
-#pragma aux outp modify nomemory;
 
 /* Debug output */
 
@@ -44,8 +35,3 @@ static void write4hex(int x) {
   write2hex(x >> 8);
   write2hex(x);
 }
-
-
-/* I/O virtualization */
-
-extern unsigned emulate_imfc_io(int port, int is_write, unsigned ax);

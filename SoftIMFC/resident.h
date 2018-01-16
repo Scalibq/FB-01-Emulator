@@ -34,6 +34,14 @@ _Packed struct config {
 
 #define RESIDENT __based(__segname("RESIDENT"))
 
+/* I/O port access */
+
+extern unsigned inp(unsigned port);
+extern unsigned outp(unsigned port, unsigned value);
+#pragma intrinsic(inp, outp)
+#pragma aux inp modify nomemory;
+#pragma aux outp modify nomemory;
+
 extern struct config RESIDENT config;
 
 extern struct iisp_header RESIDENT amis_handler;
@@ -52,3 +60,5 @@ unsigned emulate_imfc_io(int port, int is_write, unsigned ax);
 #else
 #pragma aux emulate_imfc_io parm [edx] [ecx] [eax] value [eax] modify exact [eax]
 #endif
+
+void InitIMFC(void);

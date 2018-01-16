@@ -1,3 +1,8 @@
+#pragma code_seg("RESIDENT")
+#pragma data_seg("RESIDENT", "CODE")
+
+#include "resident.h"
+
 /*
 *  Copyright (C) 2002-2012  The DOSBox Team
 *
@@ -16,6 +21,8 @@
 *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 
+#define MPU401
+//#define DBS2P
 
 #include <string.h>
 //#include "dosbox.h"
@@ -25,7 +32,12 @@
 //#include "cpu.h"
 //#include "support.h"
 #include <stdint.h>
+#ifdef MPU401
 #include "MPU401.h"
+#endif
+#ifdef DBS2P
+#include "DBS2P.h"
+#endif
 
 typedef uint8_t Bit8u, bool;
 typedef uint16_t Bit16u;
@@ -317,8 +329,13 @@ void IMF_MIDIFilter(Bit8u data)
 
 void InitIMFC(void)
 {
+#ifdef MPU401
 	// Put the MPU401 in UART mode
 	set_uart(0x330);
+#endif
+#ifdef DBS2P
+	InitDBS2P(0x378, 0);
+#endif
 	
 	// Send configuration commands to put FB-01 into IMFC-like state
 	MIDI_RawOutBuffer(disableMemProtect, sizeof(disableMemProtect));
@@ -424,5 +441,10 @@ unsigned emulate_imfc_io(int port, int is_write, unsigned ax)
 
 void MIDI_RawOutByte(Bit8u data)
 {
+#ifdef MPU401
 	put_mpu_out(0x330, data);
+#endif
+#ifdef DBS2P
+	WriteDBS2PData(0x378, data);
+#endif
 }
