@@ -365,6 +365,9 @@ int main(void) {
         cputs("Error: A different version of SOFTIMFC is already loaded.\r\n");
         exit(1);
       }
+		// Initialize virtual IMFC
+		InitIMFC();
+	  
       installed = true;
       cfg = MK_FP(FP_SEG(info.signature),
                   *(short __far *)(info.signature + _fstrlen(info.signature) + 1));
@@ -430,9 +433,6 @@ int main(void) {
     *env_seg = 0;
 
     _dos_keep(0, ((char __huge *)&resident_end - (char __huge *)(_psp :> 0) + 15) / 16);
-	
-	// Initialize virtual IMFC
-	InitIMFC();
   }
   return 0;
 }
