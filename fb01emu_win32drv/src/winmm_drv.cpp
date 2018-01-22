@@ -131,8 +131,8 @@ HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize) {
 	MIDIOUTCAPS2A * myCaps2A;
 	MIDIOUTCAPS2W * myCaps2W;
 
-	CHAR synthName[] = "FB-01 Synth Emulator\0";
-	WCHAR synthNameW[] = L"FB-01 Synth Emulator\0";
+	CHAR synthName[] = "FB-01 Synth Emulator Out\0";
+	WCHAR synthNameW[] = L"FB-01 Synth Emulator Out\0";
 
 	switch (capsSize) {
 	case (sizeof(MIDIOUTCAPSA)):
@@ -184,6 +184,57 @@ HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize) {
 		myCaps2W->wVoices = 0;
 		myCaps2W->wNotes = 0;
 		myCaps2W->wChannelMask = 0xffff;
+		myCaps2W->dwSupport = 0;
+		return MMSYSERR_NOERROR;
+
+	default:
+		return MMSYSERR_ERROR;
+	}
+}
+
+HRESULT midGetCaps(PVOID capsPtr, DWORD capsSize) {
+	MIDIINCAPSA * myCapsA;
+	MIDIINCAPSW * myCapsW;
+	MIDIINCAPS2A * myCaps2A;
+	MIDIINCAPS2W * myCaps2W;
+
+	CHAR synthName[] = "FB-01 Synth Emulator In\0";
+	WCHAR synthNameW[] = L"FB-01 Synth Emulator In\0";
+
+	switch (capsSize) {
+	case (sizeof(MIDIINCAPSA)):
+		myCapsA = (MIDIINCAPSA *)capsPtr;
+		myCapsA->wMid = MM_UNMAPPED;
+		myCapsA->wPid = MM_MPU401_MIDIIN;
+		memcpy(myCapsA->szPname, synthName, sizeof(synthName));
+		myCapsA->vDriverVersion = 0x0090;
+		myCapsA->dwSupport = 0;
+		return MMSYSERR_NOERROR;
+
+	case (sizeof(MIDIINCAPSW)):
+		myCapsW = (MIDIINCAPSW *)capsPtr;
+		myCapsW->wMid = MM_UNMAPPED;
+		myCapsW->wPid = MM_MPU401_MIDIIN;
+		memcpy(myCapsW->szPname, synthNameW, sizeof(synthNameW));
+		myCapsW->vDriverVersion = 0x0090;
+		myCapsW->dwSupport = 0;
+		return MMSYSERR_NOERROR;
+
+	case (sizeof(MIDIINCAPS2A)):
+		myCaps2A = (MIDIINCAPS2A *)capsPtr;
+		myCaps2A->wMid = MM_UNMAPPED;
+		myCaps2A->wPid = MM_MPU401_MIDIIN;
+		memcpy(myCaps2A->szPname, synthName, sizeof(synthName));
+		myCaps2A->vDriverVersion = 0x0090;
+		myCaps2A->dwSupport = 0;
+		return MMSYSERR_NOERROR;
+
+	case (sizeof(MIDIINCAPS2W)):
+		myCaps2W = (MIDIINCAPS2W *)capsPtr;
+		myCaps2W->wMid = MM_UNMAPPED;
+		myCaps2W->wPid = MM_MPU401_MIDIIN;
+		memcpy(myCaps2W->szPname, synthNameW, sizeof(synthNameW));
+		myCaps2W->vDriverVersion = 0x0090;
 		myCaps2W->dwSupport = 0;
 		return MMSYSERR_NOERROR;
 
@@ -378,6 +429,38 @@ STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	default:
 		return MMSYSERR_NOERROR;
 		break;
+	}
+}
+
+STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+{
+	switch (uMsg)
+	{
+	case MIDM_INIT:
+		return MMSYSERR_NOERROR;
+	case MIDM_OPEN:
+		return MMSYSERR_NOERROR;
+	case MIDM_CLOSE:
+		return MMSYSERR_NOERROR;
+	case MIDM_ADDBUFFER:
+		return MMSYSERR_NOERROR;
+	case MIDM_PREPARE:
+		return MMSYSERR_NOERROR;
+	case MIDM_UNPREPARE:
+		return MMSYSERR_NOERROR;
+	case MIDM_GETDEVCAPS:
+		return midGetCaps((PVOID)dwParam1, (DWORD)dwParam2);
+	case MIDM_GETNUMDEVS:
+		return 0x1;
+
+	case MIDM_START:
+		return MMSYSERR_NOERROR;
+	case MIDM_STOP:
+		return MMSYSERR_NOERROR;
+	case MIDM_RESET:
+		return MMSYSERR_NOERROR;
+	default:
+		return MMSYSERR_NOERROR;
 	}
 }
 

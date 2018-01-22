@@ -2,3 +2,4 @@ LIBRARY      mt32emu
 EXPORTS
 	DriverProc
 	modMessage
+	midMessage

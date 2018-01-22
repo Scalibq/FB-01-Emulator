@@ -154,7 +154,7 @@ typedef struct _VFB_VOICE_DATA {
 	uint8_t user_code;
 	uint8_t LFO_speed;
 	uint8_t LFO_load_enable_amd;		// MSB is LFO load enable, other bits are amd
-	uint8_t LFO_sync_pmd;				// MSD is LFO sync on note on, other bits are pmd
+	uint8_t LFO_sync_pmd;				// MSB is LFO sync on note on, other bits are pmd
 	uint8_t operator_enable;			// <0wxyz000>: w = enable op #1, x = enable op #2, y = enable op #3 z = enable op #4
 	uint8_t feedback_level_algorithm;	// <00xxxxyy>: x = feedback level, y = algorithm
 	uint8_t pms_ams;					// <0xxx00yy>: x = pms, y = ams
