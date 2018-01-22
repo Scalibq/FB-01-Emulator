@@ -365,9 +365,6 @@ int main(void) {
         cputs("Error: A different version of SOFTIMFC is already loaded.\r\n");
         exit(1);
       }
-		// Initialize virtual IMFC
-		InitIMFC();
-	  
       installed = true;
       cfg = MK_FP(FP_SEG(info.signature),
                   *(short __far *)(info.signature + _fstrlen(info.signature) + 1));
@@ -419,6 +416,10 @@ int main(void) {
             "Requires EMM386 4.46+, QEMM 7.03+ or JEMM\r\n");
       return 1;
     }
+	
+	// Initialize virtual IMFC
+	InitIMFC();
+	
     status(cfg);
 
     cfg->psp = _psp;
