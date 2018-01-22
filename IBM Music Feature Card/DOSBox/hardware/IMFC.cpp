@@ -25,6 +25,7 @@
 #include "cpu.h"
 #include "support.h"
 #include "PIT_8254.h"
+#include <Windows.h>
 
 void MIDI_RawOutByte(Bit8u data);
 void MIDI_RawOutBuffer(Bit8u* pData, Bitu length);
@@ -41,6 +42,93 @@ static void TimerAInt(bool enabled);
 static void TimerBInt(bool enabled);
 static void RxRDYInt(bool enabled);
 static void TxRDYInt(bool enabled);
+
+bool AddToFifo(Bit16u* buf, Bitu count);
+
+// Midi channel status byte
+typedef enum
+{
+	NOTE_OFF = 0x80,
+	NOTE_ON = 0x90,
+	KEY_AFTERTOUCH = 0xA0,
+	CC = 0xB0,
+	PC = 0xC0,
+	CHANNEL_AFTERTOUCH = 0xD0,
+	PITCH_WHEEL = 0xE0,
+	SYSTEM = 0xF0
+} MIDI_MSG;
+
+HMIDIIN hMidiIn = NULL;
+DWORD devID = 0;	// Device id for MIDI IN
+MIDIHDR midiHdr;
+CHAR midiBuffer[65536];
+
+void CALLBACK MidiInProc(HMIDIIN hMidiIn, UINT wMsg, DWORD_PTR dwInstance, DWORD dwParam1, DWORD dwParam2)
+{
+	// Translate to 9-bit values for IMFC
+	Bit16u temp[65536];
+
+	// Filter out timer messages
+	if ((wMsg == MIM_DATA) && ((dwParam1 & 0xFF) == 0xFE))
+		return;
+
+	switch (wMsg)
+	{
+	case MIM_DATA:
+	case MIM_MOREDATA:
+		{
+			temp[0] = dwParam1 & 0xFF;
+			temp[1] = (dwParam1 >> 8) & 0xFF;
+			temp[2] = (dwParam1 >> 16) & 0xFF;
+			DWORD dwTimeStamp = dwParam2;
+			Bitu length;
+
+			switch (temp[0])
+			{
+			case 0:
+				// Running status message?
+				break;
+			// System message?
+			case SYSTEM:
+				length = 0;
+				break;
+			// Single-byte message?
+			case PC:
+			case CHANNEL_AFTERTOUCH:
+				length = 1;
+				break;
+			// Double-byte message
+			default:
+				length = 2;
+				break;
+			}
+
+			AddToFifo(temp, length+1);
+		}
+		break;
+	case MIM_LONGDATA:
+		{
+			// System-exclusive data sent in a MIDIHDR struct
+			LPMIDIHDR pMidiHdr = (LPMIDIHDR)dwParam1;
+			DWORD dwTimeStamp = dwParam2;
+
+			// Queue up data
+			int j = pMidiHdr->dwOffset;
+
+			for (int i = 0; i < pMidiHdr->dwBytesRecorded; i++, j++)
+				temp[i] = pMidiHdr->lpData[j] & 0xFF;
+
+			AddToFifo(temp, pMidiHdr->dwBytesRecorded);
+
+			// Add new buffer
+			if (pMidiHdr->dwBytesRecorded > 0)
+				midiInAddBuffer(hMidiIn, &midiHdr, sizeof(midiHdr));
+			else
+				midiInUnprepareHeader(hMidiIn, pMidiHdr, sizeof(midiHdr));
+		}
+		break;
+	}	
+}
 
 class IMFC_PIT : public PIT_8254
 {
@@ -214,13 +302,68 @@ static IMFC_PIT* imfcPIT;
 
 static Bitu IMFCIrq = 9;
 
+// Use 16-bit elements, because IMFC transfers 9-bit values
+static Bit16u outputFIFO[65536];
+static Bitu outReadPos = 0;
+static Bitu outWritePos = 0;
+
+bool IsFifoEmpty()
+{
+	bool ret = (outReadPos == outWritePos);
+
+	if (!ret)
+	{
+		// Fetch next data
+		EXR8 = outputFIFO[outReadPos] >> 8;
+	}
+
+	return ret;
+}
+
+Bit16u GetFromFifo()
+{
+	Bit16u data = outputFIFO[outReadPos];
+
+	if (outReadPos == outWritePos)
+		RxRDY = false;
+	else
+	{
+		if (++outReadPos >= _countof(outputFIFO))
+			outReadPos = 0;
+	}
+
+	// Hack to generate IRQs
+	if (RxRDY)
+		IMFC_RxRDYEvent(0);
+
+	return data;
+}
+
+bool AddToFifo(Bit16u* buf, Bitu count)
+{
+	RxRDY = true;
+	IMFC_RxRDYEvent(0);
+
+	for (Bitu i = 0; i < count; i++)
+	{
+		outputFIFO[outWritePos] = buf[i];
+
+		if (++outWritePos >= _countof(outputFIFO))
+			outWritePos = 0;
+	}
+
+	return true;
+}
+
 static Bitu IMF_ReadPIU0(Bitu port, Bitu iolen)
 {
+	Bitu piu0;
+
 	LOG_MSG("IMF PIU0:Rd %4X", (int)port);
 
-	RxRDY = false;
+	piu0 = GetFromFifo();
 
-	return 0;
+	return piu0;
 }
 
 static Bitu IMF_ReadPIU1(Bitu port, Bitu iolen)
@@ -234,10 +377,13 @@ static Bitu IMF_ReadPIU2(Bitu port, Bitu iolen)
 {
 	Bitu piu2 = 0;
 
-	LOG_MSG("IMF PIU2:Rd %4X", (int)port);
+	//LOG_MSG("IMF PIU2:Rd %4X", (int)port);
 
 	// Always set TxRDY, RxRDY and some other bits that software might be interested in
 	//return 0x15;
+
+	// Poll FIFO to get EXR8 and piu0 set for next read
+	IsFifoEmpty();
 
 	if (EXR8)
 		piu2 |= 0x80;
@@ -305,16 +451,16 @@ static Bitu IMF_ReadTSR(Bitu port, Bitu iolen)
 
 	LOG_MSG("IMF TSR:Rd %4X", (int)port);
 
-	if (timerAInt)
+	if (TAE && timerAInt)
 		tsr |= 0x81;
 
-	if (timerBInt)
+	if (TBE && timerBInt)
 		tsr |= 0x82;
 
-	if (txRDYInt)
+	if (RIE && rxRDYInt)
 		tsr |= 0x80;
 
-	if (txRDYInt)
+	if (WIE && txRDYInt)
 		tsr |= 0x80;
 
 	return tsr;
@@ -336,7 +482,7 @@ static void IMF_WritePIU1(Bitu port, Bitu val, Bitu iolen)
 	piu1 = val;
 
 	// Did we switch between command and data?
-	reset = (lastEXT8 == EXT8);
+	reset = false;//(lastEXT8 == EXT8);
 	lastEXT8 = EXT8;
 
 	if (EXT8)
@@ -385,6 +531,9 @@ static void IMF_WritePCR(Bitu port, Bitu val, Bitu iolen)
 		break;
 	case 0x05:
 		// Set bit 2 (Write Interrupt Enable) in PIU2
+		if (!WIE && TxRDY)
+			IMFC_TxRDYEvent(0);
+
 		WIE = true;
 		break;
 	case 0x04:
@@ -393,6 +542,9 @@ static void IMF_WritePCR(Bitu port, Bitu val, Bitu iolen)
 		break;
 	case 0x09:
 		// Set bit 4 (Read Interrupt Enable) in PIU2
+		if (!RIE && RxRDY)
+			IMFC_RxRDYEvent(0);
+
 		RIE = true;
 		break;
 	case 0x08:
@@ -512,8 +664,32 @@ public:
 		MIDI_RawOutBuffer(setSysChannel1, sizeof(setSysChannel1));
 
 		imfcPIT = new IMFC_PIT(configuration);
+
+		// Start MIDI input
+		// Open the device with the given ID
+		if (MMSYSERR_NOERROR == midiInOpen( &hMidiIn, devID, (DWORD_PTR)MidiInProc, NULL, CALLBACK_FUNCTION ))
+		{
+			midiHdr.lpData = midiBuffer;
+			midiHdr.dwBufferLength = sizeof(midiBuffer);
+			midiHdr.dwFlags = 0;
+
+			// Prepare a buffer so we can receive SysEx data
+			if (MMSYSERR_NOERROR == midiInPrepareHeader(hMidiIn, &midiHdr, sizeof(midiHdr)))
+				midiInAddBuffer(hMidiIn, &midiHdr, sizeof(midiHdr));
+			else
+				LOG_MSG("Error preparing MIDI In header!");
+
+			midiInStart(hMidiIn);
+		}
 	}
 	~IMFC() {
+		if (hMidiIn != NULL)
+		{
+			midiInStop(hMidiIn);
+			midiInClose(hMidiIn);
+			hMidiIn = NULL;
+		}
+
 		delete imfcPIT;
 	}
 };
@@ -709,7 +885,7 @@ void IMF_CommandFilter(Bit8u data, bool reset)
 		char* pBuf = buf;
 
 		// Perform command
-		for (int i = 0; i < cLength; i++)
+		for (Bitu i = 0; i < cLength; i++)
 		{
 			pBuf += sprintf(pBuf, "1%02X ", commandBuffer[i]);
 		}
@@ -727,6 +903,10 @@ static void IMFC_TimerAEvent(Bitu val)
 
 	if (IBE && TMSK && TAE)
 		PIC_ActivateIRQ(IMFCIrq);
+
+	// Hack to generate IRQs
+	if (TxRDY)
+		IMFC_TxRDYEvent(0);
 
 	imfcPIT->RestartIRQ(0, IMFC_TimerAEvent);
 }
@@ -776,3 +956,4 @@ static void TxRDYInt(bool enabled)
 {
 	txRDYInt = enabled;
 }
+
