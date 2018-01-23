@@ -413,6 +413,52 @@ static DWORD midClose(DWORD uDeviceID)
 	return MMSYSERR_NOERROR;
 }
 
+static DWORD midStart(DWORD uDeviceID)
+{
+	if (uDeviceID != source.uDeviceID)
+		return MMSYSERR_BADDEVICEID;
+
+	source.state = 1;
+	source.startTime = GetTickCount();
+
+	return MMSYSERR_NOERROR;
+}
+
+static DWORD midStop(DWORD uDeviceID)
+{
+	if (uDeviceID != source.uDeviceID)
+		return MMSYSERR_BADDEVICEID;
+
+	source.state = 0;
+
+	return MMSYSERR_NOERROR;
+}
+
+static DWORD midReset(DWORD uDeviceID)
+{
+	if (uDeviceID != source.uDeviceID)
+		return MMSYSERR_BADDEVICEID;
+
+	DWORD dwTime = GetTickCount();
+
+	// Send all pending buffers to client
+	EnterCriticalSection(&midiInLock);
+	while (source.lpQueueHdr)
+	{
+		LPMIDIHDR lpMidiHdr = source.lpQueueHdr;
+		source.lpQueueHdr = lpMidiHdr->lpNext;
+		lpMidiHdr->dwFlags &= ~MHDR_INQUEUE;
+		lpMidiHdr->dwFlags |= MHDR_DONE;
+		/* FIXME: when called from 16 bit, lpQueueHdr needs to be a segmented ptr */
+
+		midCallback(uDeviceID, MIM_LONGDATA, (DWORD_PTR)lpMidiHdr, dwTime);
+	}
+	LeaveCriticalSection(&midiInLock);
+
+	return MMSYSERR_NOERROR;
+}
+
+
 HRESULT midGetCaps(PVOID capsPtr, DWORD capsSize)
 {
 	MIDIINCAPSA * myCapsA;
@@ -728,13 +774,13 @@ STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 		return 0x1;
 
 	case MIDM_START:
-		return MMSYSERR_NOERROR;
+		return midStart(uDeviceID);
 	case MIDM_STOP:
-		return MMSYSERR_NOERROR;
+		return midStop(uDeviceID);
 	case MIDM_RESET:
-		return MMSYSERR_NOERROR;
+		return midReset(uDeviceID);
 	default:
-		return MMSYSERR_NOERROR;
+		return MMSYSERR_NOTSUPPORTED;
 	}
 }
 
