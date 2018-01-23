@@ -56,6 +56,22 @@ static bool synthOpened = false;
 static HWND hwnd = NULL;
 static int driverCount;
 
+typedef struct tagMIDISource
+{
+	DWORD uDeviceID;
+	int state; /* 0 is no recording started, 1 in recording, bit 2 set if in sys exclusive recording */
+	MIDIINCAPSW caps;
+	MIDIOPENDESC midiDesc;
+	LPMIDIHDR lpQueueHdr;
+	DWORD dwFlags;
+	DWORD startTime;
+} MIDISource;
+
+//MIDISource *sources;
+MIDISource sources[MAX_DRIVERS];
+
+static CRITICAL_SECTION midiInLock; /* Critical section for MIDI In */
+
 struct Driver {
 	bool open;
 	int clientCount;
@@ -75,6 +91,7 @@ STDAPI_(LONG) DriverProc(DWORD dwDriverID, HDRVR hdrvr, WORD wMessage, DWORD dwP
 	case DRV_LOAD:
 		memset(drivers, 0, sizeof(drivers));
 		driverCount = 0;
+		InitializeCriticalSection(&midiInLock);
 		return DRV_OK;
 	case DRV_ENABLE:
 		return DRV_OK;
@@ -117,6 +134,7 @@ STDAPI_(LONG) DriverProc(DWORD dwDriverID, HDRVR hdrvr, WORD wMessage, DWORD dwP
 	case DRV_DISABLE:
 		return DRV_OK;
 	case DRV_FREE:
+		DeleteCriticalSection(&midiInLock);
 		return DRV_OK;
 	case DRV_REMOVE:
 		return DRV_OK;
@@ -125,7 +143,8 @@ STDAPI_(LONG) DriverProc(DWORD dwDriverID, HDRVR hdrvr, WORD wMessage, DWORD dwP
 }
 
 
-HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize) {
+HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize)
+{
 	MIDIOUTCAPSA * myCapsA;
 	MIDIOUTCAPSW * myCapsW;
 	MIDIOUTCAPS2A * myCaps2A;
@@ -134,7 +153,8 @@ HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize) {
 	CHAR synthName[] = "FB-01 Synth Emulator Out\0";
 	WCHAR synthNameW[] = L"FB-01 Synth Emulator Out\0";
 
-	switch (capsSize) {
+	switch (capsSize)
+	{
 	case (sizeof(MIDIOUTCAPSA)):
 		myCapsA = (MIDIOUTCAPSA *)capsPtr;
 		myCapsA->wMid = MM_UNMAPPED;
@@ -192,7 +212,159 @@ HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize) {
 	}
 }
 
-HRESULT midGetCaps(PVOID capsPtr, DWORD capsSize) {
+static DWORD midAddBuffer(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
+{
+	//TRACE("wDevID=%d lpMidiHdr=%p dwSize=%d\n", wDevID, lpMidiHdr, dwSize);
+
+	if (uDeviceID >= MAX_DRIVERS)
+	{
+		//WARN("bad device ID : %d\n", uDeviceID);
+		return MMSYSERR_BADDEVICEID;
+	}
+	if (lpMidiHdr == NULL)
+	{
+		//WARN("Invalid Parameter\n");
+		return MMSYSERR_INVALPARAM;
+	}
+	if (dwSize < offsetof(MIDIHDR, dwOffset))
+	{
+		//WARN("Invalid Parameter\n");
+		return MMSYSERR_INVALPARAM;
+	}
+	if (lpMidiHdr->dwBufferLength == 0)
+	{
+		//WARN("Invalid Parameter\n");
+		return MMSYSERR_INVALPARAM;
+	}
+	if (lpMidiHdr->dwFlags & MHDR_INQUEUE)
+	{
+		//WARN("Still playing\n");
+		return MIDIERR_STILLPLAYING;
+	}
+	if (!(lpMidiHdr->dwFlags & MHDR_PREPARED))
+	{
+		//WARN("Unprepared\n");
+		return MIDIERR_UNPREPARED;
+	}
+
+	EnterCriticalSection(&midiInLock);
+	lpMidiHdr->dwFlags &= ~WHDR_DONE;
+	lpMidiHdr->dwFlags |= MHDR_INQUEUE;
+	lpMidiHdr->dwBytesRecorded = 0;
+	lpMidiHdr->lpNext = 0;
+	if (sources[uDeviceID].lpQueueHdr == 0)
+	{
+		sources[uDeviceID].lpQueueHdr = lpMidiHdr;
+	}
+	else
+	{
+		LPMIDIHDR ptr;
+		for (ptr = sources[uDeviceID].lpQueueHdr;
+			ptr->lpNext != 0;
+			ptr = ptr->lpNext);
+		ptr->lpNext = lpMidiHdr;
+	}
+	LeaveCriticalSection(&midiInLock);
+
+	return MMSYSERR_NOERROR;
+}
+
+static DWORD midPrepare(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
+{
+	//TRACE("wDevID=%d lpMidiHdr=%p dwSize=%d\n", wDevID, lpMidiHdr, dwSize);
+
+	if (dwSize < offsetof(MIDIHDR, dwOffset) || lpMidiHdr == 0 || lpMidiHdr->lpData == 0)
+		return MMSYSERR_INVALPARAM;
+	if (lpMidiHdr->dwFlags & MHDR_PREPARED)
+		return MMSYSERR_NOERROR;
+
+	lpMidiHdr->lpNext = 0;
+	lpMidiHdr->dwFlags |= MHDR_PREPARED;
+	lpMidiHdr->dwFlags &= ~(MHDR_DONE | MHDR_INQUEUE); /* flags cleared since w2k */
+
+	return MMSYSERR_NOERROR;
+}
+
+static DWORD midUnprepare(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
+{
+	//TRACE("wDevID=%d lpMidiHdr=%p dwSize=%d\n", wDevID, lpMidiHdr, dwSize);
+
+	if (dwSize < offsetof(MIDIHDR, dwOffset) || lpMidiHdr == 0 || lpMidiHdr->lpData == 0)
+		return MMSYSERR_INVALPARAM;
+	if (!(lpMidiHdr->dwFlags & MHDR_PREPARED))
+		return MMSYSERR_NOERROR;
+	if (lpMidiHdr->dwFlags & MHDR_INQUEUE)
+		return MIDIERR_STILLPLAYING;
+
+	lpMidiHdr->dwFlags &= ~MHDR_PREPARED;
+
+	return MMSYSERR_NOERROR;
+}
+
+void midCallback(DWORD uDeviceID, DWORD dwMsg, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+{
+	MIDISource* pSource = &sources[uDeviceID];
+	MIDIOPENDESC* pMidiDesc = &pSource->midiDesc;
+
+	DWORD dwFlags = pSource->dwFlags;
+	DWORD_PTR dwCallback = pMidiDesc->dwCallback;
+	HDRVR hDevice = (HDRVR)pMidiDesc->hMidi;
+	DWORD_PTR dwUser = pMidiDesc->dwInstance;
+
+	DriverCallback(dwCallback, dwFlags, hDevice, dwMsg, dwUser, dwParam1, dwParam2);
+}
+
+static DWORD midOpen(DWORD uDeviceID, LPMIDIOPENDESC lpDesc, DWORD dwFlags)
+{
+	//TRACE("wDevID=%d lpDesc=%p dwFlags=%08x\n", uDeviceID, lpDesc, dwFlags);
+
+	if (lpDesc == NULL)
+	{
+		//WARN("Invalid Parameter\n");
+		return MMSYSERR_INVALPARAM;
+	}
+
+	if (uDeviceID >= MAX_DRIVERS)
+	{
+		//WARN("bad device ID : %d\n", uDeviceID);
+		return MMSYSERR_BADDEVICEID;
+	}
+	
+	if (sources[uDeviceID].midiDesc.hMidi != 0)
+	{
+			//WARN("device already open !\n");
+			return MMSYSERR_ALLOCATED;
+	}
+
+	if ((dwFlags & MIDI_IO_STATUS) != 0)
+	{
+		//WARN("No support for MIDI_IO_STATUS in dwFlags yet, ignoring it\n");
+		dwFlags &= ~MIDI_IO_STATUS;
+	}
+
+	if ((dwFlags & ~CALLBACK_TYPEMASK) != 0)
+	{
+		//FIXME("Bad dwFlags\n");
+		return MMSYSERR_INVALFLAG;
+	}
+
+	// Save the MIDI info for callback later
+	sources[uDeviceID].dwFlags = HIWORD(dwFlags & CALLBACK_TYPEMASK);
+	sources[uDeviceID].lpQueueHdr = NULL;
+	sources[uDeviceID].midiDesc = *lpDesc;
+	sources[uDeviceID].startTime = 0;
+	sources[uDeviceID].state = 0;
+
+	midCallback(uDeviceID, MIM_OPEN, 0, 0);
+
+	// Test message
+	midCallback(uDeviceID, MIM_DATA, 0xAABBCCDD, 0x1234);
+
+	return MMSYSERR_NOERROR;
+}
+
+HRESULT midGetCaps(PVOID capsPtr, DWORD capsSize)
+{
 	MIDIINCAPSA * myCapsA;
 	MIDIINCAPSW * myCapsW;
 	MIDIINCAPS2A * myCaps2A;
@@ -439,15 +611,15 @@ STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	case MIDM_INIT:
 		return MMSYSERR_NOERROR;
 	case MIDM_OPEN:
-		return MMSYSERR_NOERROR;
+		return midOpen(uDeviceID, (LPMIDIOPENDESC)dwParam1, dwParam2);
 	case MIDM_CLOSE:
 		return MMSYSERR_NOERROR;
 	case MIDM_ADDBUFFER:
-		return MMSYSERR_NOERROR;
+		return midAddBuffer(uDeviceID, (LPMIDIHDR)dwParam1, dwParam2);
 	case MIDM_PREPARE:
-		return MMSYSERR_NOERROR;
+		return midPrepare(uDeviceID, (LPMIDIHDR)dwParam1, dwParam2);
 	case MIDM_UNPREPARE:
-		return MMSYSERR_NOERROR;
+		return midUnprepare(uDeviceID, (LPMIDIHDR)dwParam1, dwParam2);
 	case MIDM_GETDEVCAPS:
 		return midGetCaps((PVOID)dwParam1, (DWORD)dwParam2);
 	case MIDM_GETNUMDEVS:
