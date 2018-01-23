@@ -103,6 +103,7 @@ void ProcessPending()
 	if (pPendingData == NULL)
 		return;
 
+	EnterCriticalSection(&midiInLock);
 	MIDIHDR* pHdr = source.lpQueueHdr;
 
 	while (pHdr != NULL)
@@ -144,6 +145,7 @@ void ProcessPending()
 
 		pHdr = pHdr->lpNext;
 	}
+	LeaveCriticalSection(&midiInLock);
 }
 
 struct Driver
@@ -885,6 +887,7 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 		memcpy(pPData->pData, pData, length);
 
 		// Add to list
+		EnterCriticalSection(&winmm_drv::midiInLock);
 		if (winmm_drv::pPendingData == NULL)
 			winmm_drv::pPendingData = pPData;
 		else
@@ -894,6 +897,8 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 				pCur = pCur->pNext;
 			pCur->pNext = pPData;
 		}
+		LeaveCriticalSection(&winmm_drv::midiInLock);
+
 		winmm_drv::ProcessPending();
 		break;
 	}
