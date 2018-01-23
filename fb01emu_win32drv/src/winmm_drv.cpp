@@ -27,21 +27,29 @@ static double mult;
 static LARGE_INTEGER counter;
 static LARGE_INTEGER nanoCounter = {0L};
 
-void initNanoTimer() {
+void initNanoTimer()
+{
 	LARGE_INTEGER freq = {0L};
-	if (QueryPerformanceFrequency(&freq)) {
+	if (QueryPerformanceFrequency(&freq))
+	{
 		hrTimerAvailable = true;
 		mult = 1E9 / freq.QuadPart;
-	} else {
+	}
+	else
+	{
 		hrTimerAvailable = false;
 	}
 }
 
-void updateNanoCounter() {
-	if (hrTimerAvailable) {
+void updateNanoCounter()
+{
+	if (hrTimerAvailable)
+	{
 		QueryPerformanceCounter(&counter);
 		nanoCounter.QuadPart = (long long)(counter.QuadPart * mult);
-	} else {
+	}
+	else
+	{
 		DWORD currentTime = timeGetTime();
 		if (currentTime < counter.LowPart) counter.HighPart++;
 		counter.LowPart = currentTime;
@@ -67,16 +75,18 @@ typedef struct tagMIDISource
 	DWORD startTime;
 } MIDISource;
 
-//MIDISource *sources;
-MIDISource sources[MAX_DRIVERS];
+// We can only have one synth, so only one MIDI In device
+MIDISource source = { 0 };
 
 static CRITICAL_SECTION midiInLock; /* Critical section for MIDI In */
 
-struct Driver {
+struct Driver
+{
 	bool open;
 	int clientCount;
 	HDRVR hdrvr;
-	struct Client {
+	struct Client
+	{
 		bool allocated;
 		DWORD_PTR instance;
 		DWORD flags;
@@ -99,14 +109,20 @@ STDAPI_(LRESULT) DriverProc(DWORD_PTR dwDriverID, HDRVR hdrvr, UINT msg, LONG lP
 		return DRV_OK;
 	case DRV_OPEN:
 		int driverNum;
-		if (driverCount == MAX_DRIVERS) {
+		if (driverCount == MAX_DRIVERS)
+		{
 			return 0;
-		} else {
-			for (driverNum = 0; driverNum < MAX_DRIVERS; driverNum++) {
-				if (!drivers[driverNum].open) {
+		}
+		else
+		{
+			for (driverNum = 0; driverNum < MAX_DRIVERS; driverNum++)
+			{
+				if (!drivers[driverNum].open)
+				{
 					break;
 				}
-				if (driverNum == MAX_DRIVERS) {
+				if (driverNum == MAX_DRIVERS)
+				{
 					return 0;
 				}
 			}
@@ -125,8 +141,10 @@ STDAPI_(LRESULT) DriverProc(DWORD_PTR dwDriverID, HDRVR hdrvr, UINT msg, LONG lP
 	case DRV_CONFIGURE:
 		return DRVCNF_OK;
 	case DRV_CLOSE:
-		for (int i = 0; i < MAX_DRIVERS; i++) {
-			if (drivers[i].open && drivers[i].hdrvr == hdrvr) {
+		for (int i = 0; i < MAX_DRIVERS; i++)
+		{
+			if (drivers[i].open && drivers[i].hdrvr == hdrvr)
+			{
 				drivers[i].open = false;
 				--driverCount;
 				return DRV_OK;
@@ -217,7 +235,7 @@ static DWORD midAddBuffer(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 {
 	//TRACE("wDevID=%d lpMidiHdr=%p dwSize=%d\n", wDevID, lpMidiHdr, dwSize);
 
-	if (uDeviceID >= MAX_DRIVERS)
+	if (uDeviceID != source.uDeviceID)
 	{
 		//WARN("bad device ID : %d\n", uDeviceID);
 		return MMSYSERR_BADDEVICEID;
@@ -253,14 +271,14 @@ static DWORD midAddBuffer(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 	lpMidiHdr->dwFlags |= MHDR_INQUEUE;
 	lpMidiHdr->dwBytesRecorded = 0;
 	lpMidiHdr->lpNext = 0;
-	if (sources[uDeviceID].lpQueueHdr == 0)
+	if (source.lpQueueHdr == 0)
 	{
-		sources[uDeviceID].lpQueueHdr = lpMidiHdr;
+		source.lpQueueHdr = lpMidiHdr;
 	}
 	else
 	{
 		LPMIDIHDR ptr;
-		for (ptr = sources[uDeviceID].lpQueueHdr;
+		for (ptr = source.lpQueueHdr;
 			ptr->lpNext != 0;
 			ptr = ptr->lpNext);
 		ptr->lpNext = lpMidiHdr;
@@ -304,13 +322,16 @@ static DWORD midUnprepare(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 
 void midCallback(DWORD uDeviceID, DWORD dwMsg, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
 {
-	MIDISource* pSource = &sources[uDeviceID];
-	MIDIOPENDESC* pMidiDesc = &pSource->midiDesc;
+	if (uDeviceID != source.uDeviceID)
+	{
+		// Wrong device ID!
+		return;
+	}
 
-	DWORD dwFlags = pSource->dwFlags;
-	DWORD_PTR dwCallback = pMidiDesc->dwCallback;
-	HDRVR hDevice = (HDRVR)pMidiDesc->hMidi;
-	DWORD_PTR dwUser = pMidiDesc->dwInstance;
+	DWORD dwFlags = source.dwFlags;
+	DWORD_PTR dwCallback = source.midiDesc.dwCallback;
+	HDRVR hDevice = (HDRVR)source.midiDesc.hMidi;
+	DWORD_PTR dwUser = source.midiDesc.dwInstance;
 
 	DriverCallback(dwCallback, dwFlags, hDevice, dwMsg, dwUser, dwParam1, dwParam2);
 }
@@ -325,13 +346,13 @@ static DWORD midOpen(DWORD uDeviceID, LPMIDIOPENDESC lpDesc, DWORD dwFlags)
 		return MMSYSERR_INVALPARAM;
 	}
 
-	if (uDeviceID >= MAX_DRIVERS)
+	if (uDeviceID >= 1)
 	{
 		//WARN("bad device ID : %d\n", uDeviceID);
 		return MMSYSERR_BADDEVICEID;
 	}
 	
-	if (sources[uDeviceID].midiDesc.hMidi != 0)
+	if (source.midiDesc.hMidi != 0)
 	{
 			//WARN("device already open !\n");
 			return MMSYSERR_ALLOCATED;
@@ -350,16 +371,44 @@ static DWORD midOpen(DWORD uDeviceID, LPMIDIOPENDESC lpDesc, DWORD dwFlags)
 	}
 
 	// Save the MIDI info for callback later
-	sources[uDeviceID].dwFlags = HIWORD(dwFlags & CALLBACK_TYPEMASK);
-	sources[uDeviceID].lpQueueHdr = NULL;
-	sources[uDeviceID].midiDesc = *lpDesc;
-	sources[uDeviceID].startTime = 0;
-	sources[uDeviceID].state = 0;
+	source.uDeviceID = uDeviceID;
+	source.dwFlags = HIWORD(dwFlags & CALLBACK_TYPEMASK);
+	source.lpQueueHdr = NULL;
+	source.midiDesc = *lpDesc;
+	source.startTime = 0;
+	source.state = 0;
 
 	midCallback(uDeviceID, MIM_OPEN, 0, 0);
 
 	// Test message
 	midCallback(uDeviceID, MIM_DATA, 0xAABBCCDD, 0x1234);
+
+	return MMSYSERR_NOERROR;
+}
+
+static DWORD midClose(DWORD uDeviceID)
+{
+	if (source.midiDesc.hMidi == 0)
+	{
+		// Device was already closed!
+		return MMSYSERR_ERROR;
+	}
+
+	if (uDeviceID != source.uDeviceID)
+	{
+		//WARN("bad device ID : %d\n", uDeviceID);
+		return MMSYSERR_BADDEVICEID;
+	}
+
+	if (source.lpQueueHdr != 0)
+	{
+		return MIDIERR_STILLPLAYING;
+	}
+
+	midCallback(uDeviceID, MIM_CLOSE, 0L, 0L);
+
+	// Remove handle to indicate that driver is closed
+	source.midiDesc.hMidi = 0;
 
 	return MMSYSERR_NOERROR;
 }
@@ -416,25 +465,36 @@ HRESULT midGetCaps(PVOID capsPtr, DWORD capsSize)
 	}
 }
 
-void DoCallback(int driverNum, DWORD_PTR clientNum, DWORD msg, DWORD_PTR param1, DWORD_PTR param2) {
+void modCallback(int driverNum, DWORD_PTR clientNum, DWORD msg, DWORD_PTR param1, DWORD_PTR param2)
+{
 	Driver::Client *client = &drivers[driverNum].clients[clientNum];
+
 	DriverCallback(client->callback, client->flags, drivers[driverNum].hdrvr, msg, client->instance, param1, param2);
 }
 
-LONG OpenDriver(Driver &driver, UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+LONG OpenDriver(Driver &driver, UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+{
 	int clientNum;
-	if (driver.clientCount == 0) {
+	if (driver.clientCount == 0)
+	{
 		clientNum = 0;
-	} else if (driver.clientCount == MAX_CLIENTS) {
+	}
+	else if (driver.clientCount == MAX_CLIENTS)
+	{
 		return MMSYSERR_ALLOCATED;
-	} else {
+	}
+	else
+	{
 		int i;
-		for (i = 0; i < MAX_CLIENTS; i++) {
-			if (!driver.clients[i].allocated) {
+		for (i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (!driver.clients[i].allocated)
+			{
 				break;
 			}
 		}
-		if (i == MAX_CLIENTS) {
+		if (i == MAX_CLIENTS)
+		{
 			return MMSYSERR_ALLOCATED;
 		}
 		clientNum = i;
@@ -446,37 +506,51 @@ LONG OpenDriver(Driver &driver, UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWO
 	driver.clients[clientNum].instance = desc->dwInstance;
 	*(LONG *)dwUser = clientNum;
 	driver.clientCount++;
-	DoCallback(uDeviceID, clientNum, MOM_OPEN, NULL, NULL);
+
+	modCallback(uDeviceID, clientNum, MOM_OPEN, NULL, NULL);
+
 	return MMSYSERR_NOERROR;
 }
 
-LONG CloseDriver(Driver &driver, UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (!driver.clients[dwUser].allocated) {
+LONG CloseDriver(Driver &driver, UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+{
+	if (!driver.clients[dwUser].allocated)
+	{
 		return MMSYSERR_INVALPARAM;
 	}
 	driver.clients[dwUser].allocated = false;
 	driver.clientCount--;
-	DoCallback(uDeviceID, dwUser, MOM_CLOSE, NULL, NULL);
+
+	modCallback(uDeviceID, dwUser, MOM_CLOSE, NULL, NULL);
+
 	return MMSYSERR_NOERROR;
 }
 
-class MidiStreamParserImpl : public MidiStreamParser {
+class MidiStreamParserImpl : public MidiStreamParser
+{
 public:
-	MidiStreamParserImpl(Driver::Client &useClient) : client(useClient) {}
+	MidiStreamParserImpl(Driver::Client &useClient) : client(useClient)
+	{ }
 
 protected:
-	virtual void handleShortMessage(const Bit32u message) {
-		if (hwnd == NULL) {
+	virtual void handleShortMessage(const Bit32u message)
+	{
+		if (hwnd == NULL)
+		{
 			midiSynth.PlayMIDI(message);
-		} else {
+		}
+		else
+		{
 			updateNanoCounter();
 			DWORD msg[] = { 0, 0, nanoCounter.LowPart, nanoCounter.HighPart, message }; // 0, short MIDI message indicator, timestamp, data
 			COPYDATASTRUCT cds = { client.synth_instance, sizeof(msg), msg };
 			LRESULT res = SendMessage(hwnd, WM_COPYDATA, NULL, (LPARAM)&cds);
-			if (res != 1) {
+			if (res != 1)
+			{
 				// Synth app was terminated. Fall back to integrated synth
 				hwnd = NULL;
-				if (midiSynth.Init() == 0) {
+				if (midiSynth.Init() == 0)
+				{
 					synthOpened = true;
 					midiSynth.PlayMIDI(message);
 				}
@@ -484,16 +558,22 @@ protected:
 		}
 	}
 
-	virtual void handleSysex(const Bit8u stream[], const Bit32u length) {
-		if (hwnd == NULL) {
+	virtual void handleSysex(const Bit8u stream[], const Bit32u length)
+	{
+		if (hwnd == NULL)
+		{
 			midiSynth.PlaySysex(stream, length);
-		} else {
+		}
+		else
+		{
 			COPYDATASTRUCT cds = { client.synth_instance, length, (PVOID)stream };
 			LRESULT res = SendMessage(hwnd, WM_COPYDATA, NULL, (LPARAM)&cds);
-			if (res != 1) {
+			if (res != 1)
+			{
 				// Synth app was terminated. Fall back to integrated synth
 				hwnd = NULL;
-				if (midiSynth.Init() == 0) {
+				if (midiSynth.Init() == 0)
+				{
 					synthOpened = true;
 					midiSynth.PlaySysex(stream, length);
 				}
@@ -501,11 +581,13 @@ protected:
 		}
 	}
 
-	virtual void handleSystemRealtimeMessage(const Bit8u realtime) {
+	virtual void handleSystemRealtimeMessage(const Bit8u realtime)
+	{
 		// Unsupported by now
 	}
 
-	virtual void printDebug(const char *debugMessage) {
+	virtual void printDebug(const char *debugMessage)
+	{
 #ifdef ENABLE_DEBUG_OUTPUT
 		std::cout << debugMessage << std::endl;
 #endif
@@ -515,23 +597,32 @@ private:
 	Driver::Client &client;
 };
 
-STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+{
 	Driver &driver = drivers[uDeviceID];
-	switch (uMsg) {
-	case MODM_OPEN: {
-		if (hwnd == NULL) {
+	switch (uMsg)
+	{
+	case MODM_OPEN:
+	{
+		if (hwnd == NULL)
+		{
 			hwnd = FindWindow(L"mt32emu_class", NULL);
 		}
 		DWORD instance;
-		if (hwnd == NULL) {
+		if (hwnd == NULL)
+		{
 			// Synth application not found
-			if (!synthOpened) {
+			if (!synthOpened)
+			{
 				if (midiSynth.Init() != 0) return MMSYSERR_ERROR;
 				synthOpened = true;
 			}
 			instance = NULL;
-		} else {
-			if (synthOpened) {
+		}
+		else
+		{
+			if (synthOpened)
+			{
 				midiSynth.Close();
 				synthOpened = false;
 			}
@@ -549,12 +640,15 @@ STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	}
 
 	case MODM_CLOSE:
-		if (driver.clients[dwUser].allocated == false) {
+		if (driver.clients[dwUser].allocated == false)
+		{
 			return MMSYSERR_ERROR;
 		}
-		if (hwnd == NULL) {
+		if (hwnd == NULL)
+		{
 			if (synthOpened) midiSynth.Reset();
-		} else {
+		} else
+		{
 			SendMessage(hwnd, WM_APP, driver.clients[dwUser].synth_instance, NULL); // end of session message
 		}
 		delete driver.clients[dwUser].midiStreamParser;
@@ -569,8 +663,10 @@ STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	case MODM_GETDEVCAPS:
 		return modGetCaps((PVOID)dwParam1, (DWORD)dwParam2);
 
-	case MODM_DATA: {
-		if (driver.clients[dwUser].allocated == false) {
+	case MODM_DATA:
+	{
+		if (driver.clients[dwUser].allocated == false) 
+		{
 			return MMSYSERR_ERROR;
 		}
 		driver.clients[dwUser].midiStreamParser->processShortMessage((Bit32u)dwParam1);
@@ -579,12 +675,15 @@ STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 		return MMSYSERR_NOERROR;
 	}
 
-	case MODM_LONGDATA: {
-		if (driver.clients[dwUser].allocated == false) {
+	case MODM_LONGDATA:
+	{
+		if (driver.clients[dwUser].allocated == false)
+		{
 			return MMSYSERR_ERROR;
 		}
 		MIDIHDR *midiHdr = (MIDIHDR *)dwParam1;
-		if ((midiHdr->dwFlags & MHDR_PREPARED) == 0) {
+		if ((midiHdr->dwFlags & MHDR_PREPARED) == 0)
+		{
 			return MIDIERR_UNPREPARED;
 		}
 		driver.clients[dwUser].midiStreamParser->parseStream((const Bit8u *)midiHdr->lpData, midiHdr->dwBufferLength);
@@ -592,7 +691,9 @@ STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 			return MMSYSERR_ERROR;
 		midiHdr->dwFlags |= MHDR_DONE;
 		midiHdr->dwFlags &= ~MHDR_INQUEUE;
-		DoCallback(uDeviceID, dwUser, MOM_DONE, dwParam1, NULL);
+
+		modCallback(uDeviceID, dwUser, MOM_DONE, dwParam1, NULL);
+
  		return MMSYSERR_NOERROR;
 	}
 
@@ -614,7 +715,7 @@ STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	case MIDM_OPEN:
 		return midOpen(uDeviceID, (LPMIDIOPENDESC)dwParam1, dwParam2);
 	case MIDM_CLOSE:
-		return MMSYSERR_NOERROR;
+		return midClose(uDeviceID);
 	case MIDM_ADDBUFFER:
 		return midAddBuffer(uDeviceID, (LPMIDIHDR)dwParam1, dwParam2);
 	case MIDM_PREPARE:
