@@ -297,6 +297,7 @@ static DWORD midPrepare(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 	if (lpMidiHdr->dwFlags & MHDR_PREPARED)
 		return MMSYSERR_NOERROR;
 
+	lpMidiHdr->dwBytesRecorded = 0;
 	lpMidiHdr->lpNext = 0;
 	lpMidiHdr->dwFlags |= MHDR_PREPARED;
 	lpMidiHdr->dwFlags &= ~(MHDR_DONE | MHDR_INQUEUE); /* flags cleared since w2k */
@@ -660,7 +661,8 @@ STDAPI_(DWORD) modMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 			// Synth application not found
 			if (!synthOpened)
 			{
-				if (midiSynth.Init() != 0) return MMSYSERR_ERROR;
+				if (midiSynth.Init() != 0)
+					return MMSYSERR_ERROR;
 				synthOpened = true;
 			}
 			instance = NULL;
