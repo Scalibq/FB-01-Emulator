@@ -20,7 +20,7 @@
 #define MAX_DRIVERS 8
 #define MAX_CLIENTS 8 // Per driver
 
-namespace {
+namespace winmm_drv {
 
 static bool hrTimerAvailable;
 static double mult;
@@ -95,6 +95,10 @@ void midCallback(DWORD uDeviceID, DWORD dwMsg, DWORD_PTR dwParam1, DWORD_PTR dwP
 
 void ProcessPending()
 {
+	// Have we started?
+	if (source.state == 0)
+		return;
+
 	// Do we have any data to send?
 	if (pPendingData == NULL)
 		return;
@@ -443,9 +447,6 @@ static DWORD midOpen(DWORD uDeviceID, LPMIDIOPENDESC lpDesc, DWORD dwFlags)
 	source.state = 0;
 
 	midCallback(uDeviceID, MIM_OPEN, 0, 0);
-
-	// Test message
-	midCallback(uDeviceID, MIM_DATA, 0xAABBCCDD, 0x1234);
 
 	return MMSYSERR_NOERROR;
 }
@@ -849,15 +850,17 @@ STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	}
 }
 
+} // namespace
+
 bool SendMidiData(uint8_t* pData, uint32_t length)
 {
 	// Is device open?
-	if (source.state == 0)
+	if (winmm_drv::source.state == 0)
 		return false;
 
 	DWORD dwMsg = 0;
 
-	DWORD timeStamp = GetTickCount() - source.startTime;
+	DWORD timeStamp = GetTickCount() - winmm_drv::source.startTime;
 
 	switch (length)
 	{
@@ -868,12 +871,12 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 		dwMsg |= pData[1] << 8;
 	case 1:
 		dwMsg |= pData[0];
-		midCallback(source.uDeviceID, MIM_DATA, dwMsg, timeStamp);
+		winmm_drv::midCallback(winmm_drv::source.uDeviceID, MIM_DATA, dwMsg, timeStamp);
 		break;
 		// Longer messages need a buffer
 	default:
 		// Copy data
-		PendingData * pPData = new PendingData;
+		winmm_drv::PendingData * pPData = new winmm_drv::PendingData;
 		pPData->pData = new uint8_t[length];
 		pPData->length = length;
 		pPData->sent = 0;
@@ -882,20 +885,18 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 		memcpy(pPData->pData, pData, length);
 
 		// Add to list
-		if (pPendingData == NULL)
-			pPendingData = pPData;
+		if (winmm_drv::pPendingData == NULL)
+			winmm_drv::pPendingData = pPData;
 		else
 		{
-			PendingData* pCur = pPendingData;
+			winmm_drv::PendingData* pCur = winmm_drv::pPendingData;
 			while (pCur->pNext != NULL)
 				pCur = pCur->pNext;
 			pCur->pNext = pPData;
 		}
-		ProcessPending();
+		winmm_drv::ProcessPending();
 		break;
 	}
 
 	return true;
 }
-
-} // namespace
