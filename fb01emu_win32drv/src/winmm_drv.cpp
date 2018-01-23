@@ -85,6 +85,7 @@ typedef struct tagPendingData
 	uint8_t* pData;
 	uint8_t length;
 	uint8_t sent;
+	DWORD timeStamp;
 	tagPendingData* pNext;
 } PendingData;
 
@@ -104,6 +105,7 @@ void ProcessPending()
 	{
 		uint8_t* pData = &pPendingData->pData[pPendingData->sent];
 		uint32_t length = pPendingData->length - pPendingData->sent;
+		DWORD timeStamp = pPendingData->timeStamp;
 
 		// Can we just copy into this buffer?
 		if (pHdr->dwBufferLength >= length)
@@ -134,7 +136,7 @@ void ProcessPending()
 		pHdr->dwFlags |= MHDR_DONE;
 
 		// Send back to application
-		midCallback(source.uDeviceID, MIM_LONGDATA, (DWORD_PTR)pHdr, GetTickCount() - source.startTime);
+		midCallback(source.uDeviceID, MIM_LONGDATA, (DWORD_PTR)pHdr, timeStamp);
 
 		pHdr = pHdr->lpNext;
 	}
@@ -855,6 +857,8 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 
 	DWORD dwMsg = 0;
 
+	DWORD timeStamp = GetTickCount() - source.startTime;
+
 	switch (length)
 	{
 		// Short messages can be sent right away
@@ -864,7 +868,7 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 		dwMsg |= pData[1] << 8;
 	case 1:
 		dwMsg |= pData[0];
-		midCallback(source.uDeviceID, MIM_DATA, dwMsg, GetTickCount() - source.startTime);
+		midCallback(source.uDeviceID, MIM_DATA, dwMsg, timeStamp);
 		break;
 		// Longer messages need a buffer
 	default:
@@ -873,6 +877,7 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 		pPData->pData = new uint8_t[length];
 		pPData->length = length;
 		pPData->sent = 0;
+		pPData->timeStamp = timeStamp;
 		pPData->pNext = NULL;
 		memcpy(pPData->pData, pData, length);
 
