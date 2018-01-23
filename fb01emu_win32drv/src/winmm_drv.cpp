@@ -86,8 +86,10 @@ struct Driver {
 	} clients[MAX_CLIENTS];
 } drivers[MAX_DRIVERS];
 
-STDAPI_(LONG) DriverProc(DWORD dwDriverID, HDRVR hdrvr, WORD wMessage, DWORD dwParam1, DWORD dwParam2) {
-	switch(wMessage) {
+STDAPI_(LRESULT) DriverProc(DWORD_PTR dwDriverID, HDRVR hdrvr, UINT msg, LONG lParam1, LONG lParam2)
+{
+	switch(msg)
+	{
 	case DRV_LOAD:
 		memset(drivers, 0, sizeof(drivers));
 		driverCount = 0;
@@ -141,7 +143,6 @@ STDAPI_(LONG) DriverProc(DWORD dwDriverID, HDRVR hdrvr, WORD wMessage, DWORD dwP
 	}
 	return DRV_OK;
 }
-
 
 HRESULT modGetCaps(PVOID capsPtr, DWORD capsSize)
 {

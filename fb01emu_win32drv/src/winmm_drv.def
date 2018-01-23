@@ -1,4 +1,4 @@
-LIBRARY      mt32emu
+LIBRARY      FB01emu
 EXPORTS
 	DriverProc
 	modMessage
