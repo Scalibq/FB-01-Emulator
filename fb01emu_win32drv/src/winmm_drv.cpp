@@ -297,7 +297,6 @@ static DWORD midPrepare(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 	if (lpMidiHdr->dwFlags & MHDR_PREPARED)
 		return MMSYSERR_NOERROR;
 
-	lpMidiHdr->dwBytesRecorded = 0;
 	lpMidiHdr->lpNext = 0;
 	lpMidiHdr->dwFlags |= MHDR_PREPARED;
 	lpMidiHdr->dwFlags &= ~(MHDR_DONE | MHDR_INQUEUE); /* flags cleared since w2k */
