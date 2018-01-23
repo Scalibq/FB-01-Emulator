@@ -80,6 +80,66 @@ MIDISource source = { 0 };
 
 static CRITICAL_SECTION midiInLock; /* Critical section for MIDI In */
 
+typedef struct tagPendingData
+{
+	uint8_t* pData;
+	uint8_t length;
+	uint8_t sent;
+	tagPendingData* pNext;
+} PendingData;
+
+PendingData* pPendingData = NULL;
+
+void midCallback(DWORD uDeviceID, DWORD dwMsg, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+
+void ProcessPending()
+{
+	// Do we have any data to send?
+	if (pPendingData == NULL)
+		return;
+
+	MIDIHDR* pHdr = source.lpQueueHdr;
+
+	while (pHdr != NULL)
+	{
+		uint8_t* pData = &pPendingData->pData[pPendingData->sent];
+		uint32_t length = pPendingData->length - pPendingData->sent;
+
+		// Can we just copy into this buffer?
+		if (pHdr->dwBufferLength >= length)
+		{
+			memcpy(pHdr->lpData, pData, length);
+			pHdr->dwBytesRecorded = length;
+
+			// Remove this from pending data
+			PendingData* pOld = pPendingData;
+			pPendingData = pPendingData->pNext;
+
+			delete[] pOld->pData;
+			delete pOld;
+		}
+		else
+		{
+			// Copy only part of the data
+			length = pHdr->dwBufferLength;
+
+			memcpy(pHdr->lpData, pData, length);
+			pHdr->dwBytesRecorded = length;
+
+			// Add this to the sent bytes
+			pPendingData->sent += length;
+		}
+
+		pHdr->dwFlags &= MHDR_INQUEUE;
+		pHdr->dwFlags |= MHDR_DONE;
+
+		// Send back to application
+		midCallback(source.uDeviceID, MIM_LONGDATA, (DWORD_PTR)pHdr, GetTickCount() - source.startTime);
+
+		pHdr = pHdr->lpNext;
+	}
+}
+
 struct Driver
 {
 	bool open;
@@ -267,7 +327,7 @@ static DWORD midAddBuffer(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 	}
 
 	EnterCriticalSection(&midiInLock);
-	lpMidiHdr->dwFlags &= ~WHDR_DONE;
+	lpMidiHdr->dwFlags &= ~MHDR_DONE;
 	lpMidiHdr->dwFlags |= MHDR_INQUEUE;
 	lpMidiHdr->dwBytesRecorded = 0;
 	lpMidiHdr->lpNext = 0;
@@ -284,6 +344,8 @@ static DWORD midAddBuffer(DWORD uDeviceID, LPMIDIHDR lpMidiHdr, DWORD dwSize)
 		ptr->lpNext = lpMidiHdr;
 	}
 	LeaveCriticalSection(&midiInLock);
+
+	ProcessPending();
 
 	return MMSYSERR_NOERROR;
 }
@@ -783,6 +845,52 @@ STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 	default:
 		return MMSYSERR_NOTSUPPORTED;
 	}
+}
+
+bool SendMidiData(uint8_t* pData, uint32_t length)
+{
+	// Is device open?
+	if (source.state == 0)
+		return false;
+
+	DWORD dwMsg = 0;
+
+	switch (length)
+	{
+		// Short messages can be sent right away
+	case 3:
+		dwMsg |= pData[2] << 16;
+	case 2:
+		dwMsg |= pData[1] << 8;
+	case 1:
+		dwMsg |= pData[0];
+		midCallback(source.uDeviceID, MIM_DATA, dwMsg, GetTickCount() - source.startTime);
+		break;
+		// Longer messages need a buffer
+	default:
+		// Copy data
+		PendingData * pPData = new PendingData;
+		pPData->pData = new uint8_t[length];
+		pPData->length = length;
+		pPData->sent = 0;
+		pPData->pNext = NULL;
+		memcpy(pPData->pData, pData, length);
+
+		// Add to list
+		if (pPendingData == NULL)
+			pPendingData = pPData;
+		else
+		{
+			PendingData* pCur = pPendingData;
+			while (pCur->pNext != NULL)
+				pCur = pCur->pNext;
+			pCur->pNext = pPData;
+		}
+		ProcessPending();
+		break;
+	}
+
+	return true;
 }
 
 } // namespace
