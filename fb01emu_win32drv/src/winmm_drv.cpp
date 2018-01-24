@@ -137,7 +137,7 @@ void ProcessPending()
 			pPendingData->sent += length;
 		}
 
-		pHdr->dwFlags &= MHDR_INQUEUE;
+		pHdr->dwFlags &= ~MHDR_INQUEUE;
 		pHdr->dwFlags |= MHDR_DONE;
 
 		// Send back to application

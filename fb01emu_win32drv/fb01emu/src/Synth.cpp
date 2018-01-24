@@ -411,6 +411,8 @@ Bit32u Synth::getStereoOutputSampleRate() const {
 }
 
 void Synth::render(Bit16s *stream, Bit32u len) {
+	Bit32u oldLen = len;
+
 	while (len > 0) {
 		// We need to ensure zero-duration notes will play so add minimum 1-sample delay.
 		Bit32u thisLen = 1;
@@ -434,11 +436,14 @@ void Synth::render(Bit16s *stream, Bit32u len) {
 				midiQueue->dropMidiEvent();
 			}
 		}
-		pcm8((int8_t*)stream, thisLen);
-		stream += thisLen*2;
+		//pcm8((int8_t*)stream, thisLen);
+		//stream += thisLen*2;
 		len -= thisLen;
 		renderedSampleCount += thisLen;
 	}
+
+	pcm8((int8_t*)stream, oldLen);
+	stream += oldLen *2;
 }
 
 bool Synth::isActive() {

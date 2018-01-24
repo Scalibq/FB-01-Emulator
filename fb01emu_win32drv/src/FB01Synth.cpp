@@ -458,11 +458,6 @@ void FB01Synth::ApplySettings() {
 }
 
 int FB01Synth::Init() {
-	// Set a test message
-	uint8_t data[] = { 0xF0, 0, 1, 2, 3, 0xF7 };
-	
-	SendMidiData(data, _countof(data));
-
 	// TODO
 	synth = NULL;
 	ReloadSettings();

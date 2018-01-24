@@ -692,6 +692,26 @@ void voice_bulk_data_dump(MidiEvent* ev)
 	OutputDebugString("FB01: Voice bulk data dump\n");
 }
 
+void voice_data_dump(MidiEvent* ev)
+{
+	OutputDebugString("FB01: Voice data dump\n");
+
+	// Total size is 8 bytes for SysEx prefix and suffix + 3 bytes packet overhead + 64*2 bytes data == 139 bytes
+	uint8_t data[139] = { 0xF0, 0x43, 0x75, 0x00, 0x00, 0x00, 0x00 };
+
+	// Set source
+	data[3] = ev->ex_buf[2];
+	data[4] = ev->ex_buf[3] & 0x03;
+
+	// Set terminator byte
+	data[138] = 0xF0;
+
+	// Packets start at offset 7, use type A encoding (8-bit data)
+	encode_packet_type_A(&data[7], &evfb->voice_banks[0][0], sizeof(evfb->voice_banks[0][0]));
+
+	SendMidiData(data, _countof(data));
+}
+
 void store_in_voice_RAM(MidiEvent* ev)
 {
 	OutputDebugString("FB01: Store into voice RAM\n");
@@ -1040,7 +1060,8 @@ static int fb01_exclusive( MidiEvent* ev )
 					break;
 				case 0x00:
 					// A4: F0 43 75 <0000ssss> <00101iii> 00 <00dddddd> F7
-					store_in_voice_RAM(ev);
+					//store_in_voice_RAM(ev);
+					voice_data_dump(ev);
 					break;
 				default:
 					unknown_sysex(ev);
