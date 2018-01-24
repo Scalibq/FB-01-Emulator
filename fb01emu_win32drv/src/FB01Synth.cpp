@@ -28,7 +28,10 @@ typedef LONG LSTATUS;
 #undef CreateEvent
 #define CreateEvent CreateEventA
 
-extern bool SendMidiData(uint8_t* pData, uint32_t length);
+extern "C"
+{
+	extern uint8_t SendMidiData(uint8_t* pData, uint32_t length);
+}
 
 namespace MT32Emu {
 

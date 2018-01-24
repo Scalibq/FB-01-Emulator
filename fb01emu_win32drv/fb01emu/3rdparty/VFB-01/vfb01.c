@@ -58,6 +58,8 @@
 
 /* ------------------------------------------------------------------- */
 
+extern uint8_t SendMidiData(uint8_t* pData, uint32_t length);
+
 static int is_on_instrument(VFB_INSTRUMENT* instrument, int ch, int note);
 static int note_off( MidiEvent * );
 static int note_on( MidiEvent * );
@@ -76,6 +78,75 @@ static unsigned char sysex_buf[SYSEX_BUF_SIZE];
 static VFB_DATA *evfb=NULL;
 static int rpn_adr[VFB_MAX_CHANNEL_NUMBER];
 static int nrpn_adr[VFB_MAX_CHANNEL_NUMBER];
+
+/* ------------------------------------------------------------------- */
+
+uint8_t checksum(uint8_t* pData, size_t length)
+{
+	uint8_t c = 0;
+
+	for (size_t i = 0; i < length; i++)
+	{
+		c += *pData++;
+	}
+
+	return (-c) & 0x7F;
+}
+
+// Packet type A has 8-bit data, split up into two 4-bit values (MIDI data can not use the MSB of each byte)
+void encode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t length)
+{
+	uint8_t c = 0;
+
+	// Fill header
+	size_t len2 = (length + length);
+
+	*pDest++ = len2 >> 7;
+	*pDest++ = len2 & 0x7F;
+
+	// Fill data
+	for (size_t i = 0; i < length; i++)
+	{
+		uint8_t d;
+
+		// Low half
+		d = *pSrc & 0xF;
+		c += d;
+		*pDest++ = d;
+
+		// High half
+		d = *pSrc++ >> 4;
+		c += d;
+		*pDest++ = d;
+	}
+
+	// Fill checksum
+	*pDest = (-c) & 0x7F;
+}
+
+// Packet type B has 7-bit data
+void encode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length)
+{
+	uint8_t c = 0;
+
+	// Fill header
+	*pDest++ = length >> 7;
+	*pDest++ = length & 0x7F;
+
+	// Fill data
+	for (size_t i = 0; i < length; i++)
+	{
+		uint8_t d;
+
+		d = *pSrc++;
+		c += d;
+		*pDest++ = d;
+	}
+
+	// Fill checksum
+	*pDest = (-c) & 0x7F;
+}
+
 
 /* ------------------------------------------------------------------- */
 
@@ -644,6 +715,20 @@ void each_voice_bulk_data_dump(MidiEvent* ev)
 void current_config_data_dump(MidiEvent* ev)
 {
 	OutputDebugString("FB01: Current configuration data dump\n");
+
+	// Total size is 8 bytes for SysEx prefix and suffix + 3 bytes packet overhead + 160 bytes data == 171 bytes
+	uint8_t data[171] = { 0xF0, 0x43, 0x75, 0x00, 0x00, 0x01, 0x00 };
+
+	// Set source
+	data[3] = ev->ex_buf[4];
+
+	// Set terminator byte
+	data[170] = 0xF0;
+
+	// Packets start at offset 7, use type B encoding (7-bit data)
+	encode_packet_type_B(&data[7], &evfb->active_config, sizeof(evfb->active_config));
+
+	SendMidiData(data, _countof(data));
 }
 
 void config_data_dump(MidiEvent* ev)

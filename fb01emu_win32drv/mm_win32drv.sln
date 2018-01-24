@@ -1,13 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.16
+VisualStudioVersion = 15.0.27130.2024
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fb01emu_msvc", "fb01emu\fb01emu_msvc.vcxproj", "{4012BB15-E07E-4297-B88E-918148EABF2B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mm_win32drv", "mm_win32drv.vcxproj", "{2852DCD6-0274-4DF4-97E3-C0CB7CDA9668}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MidiPlay", "MidiPlay\MidiPlay.vcxproj", "{B9F02E70-DE1B-442F-BDED-190819A613B3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,16 +31,11 @@ Global
 		{2852DCD6-0274-4DF4-97E3-C0CB7CDA9668}.Release|Win32.Build.0 = Release|Win32
 		{2852DCD6-0274-4DF4-97E3-C0CB7CDA9668}.Release|x64.ActiveCfg = Release|x64
 		{2852DCD6-0274-4DF4-97E3-C0CB7CDA9668}.Release|x64.Build.0 = Release|x64
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Debug|Win32.ActiveCfg = Debug|Win32
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Debug|Win32.Build.0 = Debug|Win32
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Debug|x64.ActiveCfg = Debug|x64
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Debug|x64.Build.0 = Debug|x64
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Release|Win32.ActiveCfg = Release|Win32
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Release|Win32.Build.0 = Release|Win32
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Release|x64.ActiveCfg = Release|x64
-		{B9F02E70-DE1B-442F-BDED-190819A613B3}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1845E41C-4948-4F0A-B17F-96DFCFAD8877}
 	EndGlobalSection
 EndGlobal

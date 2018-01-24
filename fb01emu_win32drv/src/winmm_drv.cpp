@@ -106,7 +106,7 @@ void ProcessPending()
 	EnterCriticalSection(&midiInLock);
 	MIDIHDR* pHdr = source.lpQueueHdr;
 
-	while (pHdr != NULL)
+	while (pHdr != NULL && pPendingData != NULL)
 	{
 		uint8_t* pData = &pPendingData->pData[pPendingData->sent];
 		uint32_t length = pPendingData->length - pPendingData->sent;
@@ -854,11 +854,16 @@ STDAPI_(DWORD) midMessage(DWORD uDeviceID, DWORD uMsg, DWORD_PTR dwUser, DWORD_P
 
 } // namespace
 
-bool SendMidiData(uint8_t* pData, uint32_t length)
+extern "C"
+{
+	uint8_t SendMidiData(uint8_t* pData, uint32_t length);
+}
+
+uint8_t SendMidiData(uint8_t* pData, uint32_t length)
 {
 	// Is device open?
 	if (winmm_drv::source.state == 0)
-		return false;
+		return 0;
 
 	DWORD dwMsg = 0;
 
@@ -903,5 +908,5 @@ bool SendMidiData(uint8_t* pData, uint32_t length)
 		break;
 	}
 
-	return true;
+	return 1;
 }
