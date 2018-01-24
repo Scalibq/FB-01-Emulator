@@ -147,6 +147,69 @@ void encode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length)
 	*pDest = (-c) & 0x7F;
 }
 
+// Packet type A has 8-bit data, split up into two 4-bit values (MIDI data can not use the MSB of each byte)
+uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t* pLength)
+{
+	uint8_t c = 0;
+	size_t length;
+	size_t i;
+
+	// Decode length
+	length = *pSrc++ << 7;
+	length |= *pSrc++ & 0x7F;
+
+	// Decode all bytes
+	for (i = 0; i < length; i += 2)
+	{
+		uint8_t d;
+
+		d = *pSrc++;
+		c += d;
+		*pDest = d;
+
+		d = *pSrc++;
+		c += d;
+		*pDest++ |= d << 4;
+	}
+
+	// Calculate length
+	*pLength = length;
+
+	// Compare checksum
+	c = (-c) & 0x7F;
+
+	return (c == *pSrc);
+}
+
+// Packet type B has 7-bit data
+uint8_t decode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t* pLength)
+{
+	uint8_t c = 0;
+	size_t length;
+	size_t i;
+
+	// Decode length
+	length = *pSrc++ >> 7;
+	length |= *pSrc++ & 0x7F;
+
+	// Decode all bytes
+	for (i = 0; i < length; i++)
+	{
+		uint8_t d;
+
+		d = *pSrc++;
+		c += d;
+		*pDest++ = d;
+	}
+
+	// Calculate length
+	*pLength = length;
+
+	// Compare checksum
+	c = (-c) & 0x7F;
+
+	return (c == *pSrc);
+}
 
 /* ------------------------------------------------------------------- */
 
@@ -862,54 +925,36 @@ void node_message(MidiEvent* ev)
 	{
 	case 0:
 		// Voice data bank
-		len = ev->ex_buf[6] << 8;
-		len |= ev->ex_buf[7];
+		pSrc = ev->ex_buf + 6;
+		pData = data;
+
+		// Header
+		// Data encoded in type A messages
+		decode_packet_type_A(pData, pSrc, &len);
+
+		pSrc += len + 3;
+		pData += len >> 1;
 
 		sprintf(buf, "FB01: Voice bank data, length: %u, destination: %u, checksum: %02X, end: %02X\n",
 			len, destination, ev->ex_buf[7 + len], ev->ex_buf[8 + len]);
 		OutputDebugString(buf);
 
-		pSrc = ev->ex_buf + 8;
-		pData = data;
-
-		// Decode all bytes
-		for (i = 0; i < len; i += 2)
-		{
-			*pData = *pSrc++;
-			*pData++ |= *pSrc++ << 4;
-		}
-
-		pData = data;
-
 		// Parse voice header
-		memcpy(name, pData, 8);
+		memcpy(name, data, 8);
 		sprintf(buf, "Voice bank name: %s\n", name);
 		OutputDebugString(buf);
 
 		// Voices only have 7 byte names
 		name[7] = 0;
 
-		// Skip past header
-		pData += 0x20;
-		len -= 0x40;
-
-		// Parse all voices
-		while (len > 0)
+		// Parse all 48 voices
+		for (i = 0; i < 48; i++)
 		{
-			memcpy(name, pData, 7);
-			sprintf(buf, "Voice name: %s\n", name);
-			OutputDebugString(buf);
+			uint8_t checkOk = decode_packet_type_A(pData, pSrc, &len);
 
-			len -= 64*2;
-			pData += 64;
+			pSrc += len + 3;
+			pData += len >> 1;
 		}
-
-		pData = pSrc;
-
-		sprintf(buf, "FB01: End of message: %02X %02X %02X %02X %02X %02X %02X %02X\n",
-			pData[0], pData[1], pData[2], pData[3], pData[4], pData[5], pData[6], pData[7]);
-
-		OutputDebugString(buf);
 
 		// Store data in the proper voice bank
 		memcpy(evfb->voice_banks[destination], data, sizeof(VFB_VOICE_BANK));
