@@ -1613,7 +1613,8 @@ void ym2151_reset_chip(void *_chip)
 	{
 		memset(&chip->oper[i],'\0',sizeof(YM2151Operator));
 		chip->oper[i].volume = MAX_ATT_INDEX;
-			chip->oper[i].kc_i = 768; /* min kc_i value */
+		chip->oper[i].kc_i = 768; /* min kc_i value */
+		chip->oper[i].mem_connect = &chip->mem;   /* store it anywhere where it will not be used */
 	}
 
 	chip->eg_timer = 0;

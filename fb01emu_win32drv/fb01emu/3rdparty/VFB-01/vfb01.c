@@ -86,9 +86,7 @@ uint8_t checksum(uint8_t* pData, size_t length)
 	uint8_t c = 0;
 
 	for (size_t i = 0; i < length; i++)
-	{
 		c += *pData++;
-	}
 
 	return (-c) & 0x7F;
 }
@@ -138,7 +136,7 @@ void encode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length)
 	{
 		uint8_t d;
 
-		d = *pSrc++;
+		d = *pSrc++ & 0x7F;
 		c += d;
 		*pDest++ = d;
 	}
@@ -716,7 +714,7 @@ void param_change_instrument(MidiEvent* ev)
 {
 	// A1: F0 43 75 <0000ssss> <00011iii> <00pppppp> <0ddddddd> F7
 	// A2: F0 43 75 <0000ssss> <00011iii> <01pppppp> <0000dddd> <0000dddd> F7
-	int s, i, p, d;
+	int s, i, p, d, j;
 
 	char buf[1024];
 
@@ -747,6 +745,17 @@ void param_change_instrument(MidiEvent* ev)
 	case 0x03:
 		evfb->active_config.instruments[i].key_low_limit = d;
 		break;
+	case 0x04:
+		evfb->active_config.instruments[i].voice_bank = d;
+		break;
+	case 0x05:
+		evfb->active_config.instruments[i].voice = d;
+		// TODO: This is just a hack!
+		for (j = 0; j < 8; j++)
+		{
+			ym2151_set_voice(j, d);
+		}
+		break;
 	}
 }
 
@@ -761,16 +770,18 @@ void voice_data_dump(MidiEvent* ev)
 
 	// Total size is 8 bytes for SysEx prefix and suffix + 3 bytes packet overhead + 64*2 bytes data == 139 bytes
 	uint8_t data[139] = { 0xF0, 0x43, 0x75, 0x00, 0x00, 0x00, 0x00 };
+	uint8_t bank = ev->ex_buf[3] & 0x03;
+	uint8_t voice = ev->ex_buf[5] & 0x3F;
 
 	// Set source
 	data[3] = ev->ex_buf[2];
-	data[4] = ev->ex_buf[3] & 0x03;
+	data[4] = bank;
 
 	// Set terminator byte
 	data[138] = 0xF0;
 
 	// Packets start at offset 7, use type A encoding (8-bit data)
-	encode_packet_type_A(&data[7], &evfb->voice_banks[0][0], sizeof(evfb->voice_banks[0][0]));
+	encode_packet_type_A(&data[7], &evfb->voice_banks[bank].voice_data[voice], sizeof(evfb->voice_banks[bank].voice_data[voice]));
 
 	SendMidiData(data, _countof(data));
 }
@@ -793,6 +804,39 @@ void voice_RAM1_bulk_data_dump(MidiEvent* ev)
 void each_voice_bulk_data_dump(MidiEvent* ev)
 {
 	OutputDebugString("FB01: Each voice bank bulk data dump\n");
+
+	// Total size is 8 bytes for SysEx prefix and suffix + 49*3 bytes packet overhead + 32*2 +  48*64*2 bytes data == 6363 bytes
+	uint8_t data[6363] = { 0xF0, 0x43, 0x75, 0x00, 0x00, 0x00 };
+	uint8_t* pData;
+	uint8_t bank = ev->ex_buf[5];
+	uint32_t i;
+
+	// Set source
+	data[3] = ev->ex_buf[2];
+
+	// Set bank number
+	data[6] = bank & 0x03;
+
+	// Set terminator byte
+	data[6362] = 0xF0;
+
+	// Export header
+	// Packets start at offset 7, use type A encoding (8-bit data)
+	pData = data + 7;
+	encode_packet_type_A(pData, &evfb->voice_banks[bank], 32);
+
+	pData += (32 * 2) + 3;
+
+	// Export all 48 voices of this bank
+	for (i = 0; i < 48; i++)
+	{
+		// Packets start at offset 7, use type A encoding (8-bit data)
+		encode_packet_type_A(pData, &evfb->voice_banks[bank].voice_data[i], sizeof(evfb->voice_banks[bank].voice_data[i]));
+
+		pData += (sizeof(evfb->voice_banks[bank].voice_data[i]) * 2) + 3;
+	}
+
+	SendMidiData(data, _countof(data));
 }
 
 void current_config_data_dump(MidiEvent* ev)
@@ -920,6 +964,7 @@ void node_message(MidiEvent* ev)
 	destination = ev->ex_buf[5];
 	uint8_t *pSrc, *pData;
 	uint8_t data[8192];
+	uint8_t checkOk = 1;
 
 	switch (format)
 	{
@@ -930,7 +975,7 @@ void node_message(MidiEvent* ev)
 
 		// Header
 		// Data encoded in type A messages
-		decode_packet_type_A(pData, pSrc, &len);
+		checkOk &= decode_packet_type_A(pData, pSrc, &len);
 
 		pSrc += len + 3;
 		pData += len >> 1;
@@ -950,20 +995,23 @@ void node_message(MidiEvent* ev)
 		// Parse all 48 voices
 		for (i = 0; i < 48; i++)
 		{
-			uint8_t checkOk = decode_packet_type_A(pData, pSrc, &len);
+			checkOk &= decode_packet_type_A(pData, pSrc, &len);
 
 			pSrc += len + 3;
 			pData += len >> 1;
 		}
 
+		if (!checkOk)
+			OutputDebugString("Checksum error!\n");
+
 		// Store data in the proper voice bank
-		memcpy(evfb->voice_banks[destination], data, sizeof(VFB_VOICE_BANK));
+		memcpy(&evfb->voice_banks[destination], data, sizeof(evfb->voice_banks[destination]));
 
 		// Convert to 'native' VFB format
 		// TODO: Use real FB-01 voice data directly
 		for (i = 0; i < 48; i++)
 		{
-			convert_voice(&evfb->voice_banks[destination][i], i);
+			convert_voice(&evfb->voice_banks[destination].voice_data[i], i);
 		}
 		break;
 	case 6:

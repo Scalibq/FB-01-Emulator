@@ -171,7 +171,7 @@ typedef struct _VFB_VOICE_DATA {
 typedef struct _VFB_VOICE_BANK {
 	uint8_t name[8];
 	uint8_t reserved[24];
-	VFB_VOICE_DATA voice_data[48];
+	VFB_VOICE_DATA voice_data[VFB_NUM_VOICES];
 } VFB_VOICE_BANK;
 
 #pragma pack(pop)
@@ -183,7 +183,7 @@ typedef struct _VFB_DATA {
 
 	VOICE_DATA voice[VFB_MAX_TONE_NUMBER];
 	VFB_CONFIGURATION configuration[VFB_MAX_CONFIGURATIONS];			// First 16 configurations are RAM, rest is ROM
-	VFB_VOICE_DATA voice_banks[VFB_NUM_VOICE_BANKS][VFB_NUM_VOICES];	// First two banks are RAM, rest is ROM
+	VFB_VOICE_BANK voice_banks[VFB_NUM_VOICE_BANKS];					// First two banks are RAM, rest is ROM
 
 	char *voice_parameter_file;
 
