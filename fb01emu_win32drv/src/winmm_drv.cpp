@@ -83,8 +83,8 @@ static CRITICAL_SECTION midiInLock; /* Critical section for MIDI In */
 typedef struct tagPendingData
 {
 	uint8_t* pData;
-	uint8_t length;
-	uint8_t sent;
+	size_t length;
+	size_t sent;
 	DWORD timeStamp;
 	tagPendingData* pNext;
 } PendingData;

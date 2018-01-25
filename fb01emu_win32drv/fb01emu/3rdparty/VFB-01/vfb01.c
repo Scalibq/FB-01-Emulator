@@ -150,14 +150,17 @@ void encode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length)
 uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t length, size_t* pLength)
 {
 	uint8_t c = 0;
-	size_t i;
+	size_t i, len;
 
 	// Decode length
-	*pLength = (*pSrc++ & 0x1F) << 7;
-	*pLength |= *pSrc++ & 0x7E;
+	len = (*pSrc++ & 0x1F) << 7;
+	len |= *pSrc++ & 0x7E;
+
+	if (pLength != NULL)
+		*pLength = len;
 
 	if (length == 0)
-		length = *pLength;
+		length = len;
 
 	// Decode all bytes
 	for (i = 0; i < length; i += 2)
@@ -173,9 +176,6 @@ uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t length, size_
 		*pDest++ |= d << 4;
 	}
 
-	// Calculate length
-	*pLength = length;
-
 	// Compare checksum
 	c = (-c) & 0x7F;
 
@@ -186,14 +186,17 @@ uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t length, size_
 uint8_t decode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length, size_t* pLength)
 {
 	uint8_t c = 0;
-	size_t i;
+	size_t i, len;
 
 	// Decode length
-	*pLength = (*pSrc++ & 0x1F) << 7;
-	*pLength |= *pSrc++ & 0x7F;
+	len = (*pSrc++ & 0x1F) << 7;
+	len |= *pSrc++ & 0x7F;
+
+	if (pLength != NULL)
+		*pLength = len;
 
 	if (length == 0)
-		length = *pLength;
+		length = len;
 
 	// Decode all bytes
 	for (i = 0; i < length; i++)
@@ -820,7 +823,7 @@ void each_voice_bulk_data_dump(MidiEvent* ev)
 	data[6] = bank & 0x03;
 
 	// Set terminator byte
-	data[6362] = 0xF0;
+	data[6362] = 0xF7;
 
 	// Export header
 	// Packets start at offset 7, use type A encoding (8-bit data)
@@ -852,7 +855,7 @@ void current_config_data_dump(MidiEvent* ev)
 	data[3] = ev->ex_buf[4];
 
 	// Set terminator byte
-	data[170] = 0xF0;
+	data[170] = 0xF7;
 
 	// Packets start at offset 7, use type B encoding (7-bit data)
 	encode_packet_type_B(&data[7], &evfb->active_config, sizeof(evfb->active_config));
@@ -977,7 +980,8 @@ void node_message(MidiEvent* ev)
 
 		// Header
 		// Data encoded in type A messages
-		checkOk &= decode_packet_type_A(pData, pSrc, 32, &len);
+		len = 64;
+		checkOk &= decode_packet_type_A(pData, pSrc, len, NULL);
 
 		pSrc += len + 3;
 		pData += len >> 1;
@@ -995,9 +999,10 @@ void node_message(MidiEvent* ev)
 		name[7] = 0;
 
 		// Parse all 48 voices
+		len = 128;
 		for (i = 0; i < 48; i++)
 		{
-			checkOk &= decode_packet_type_A(pData, pSrc, 64, &len);
+			checkOk &= decode_packet_type_A(pData, pSrc, len, NULL);
 
 			pSrc += len + 3;
 			pData += len >> 1;
