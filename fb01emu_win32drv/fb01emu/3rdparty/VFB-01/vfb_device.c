@@ -115,6 +115,19 @@ extern int allocate_base_voices(void)
 	return 0;
 }
 
+extern int update_voice(int v)
+{
+	int i, j;
+
+	j = instrument_map[v].base_voice + evfb->active_config.instruments[v].note_count;
+
+	for (i = instrument_map[v].base_voice; i < j; i++)
+	{
+		// TODO: use proper bank and voice
+		ym2151_set_voice(i, evfb->active_config.instruments[v].voice);
+	}
+}
+
 static int is_already_opm_allocated = FLAG_FALSE;
 static int ym2151_reg_init( VFB_DATA *vfb ) {
   int i,j;

@@ -485,8 +485,8 @@ int FB01Synth::Init() {
 	if (wResult) return wResult;
 
 	// Start playing stream
-	synth->render(buffer, bufferSize);
-	renderedFramesCount = bufferSize;
+	//synth->render(buffer, bufferSize);
+	//renderedFramesCount = bufferSize;
 
 	wResult = waveOut.Start();
 	return wResult;

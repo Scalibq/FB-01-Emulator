@@ -76,6 +76,7 @@ static void priority_init( void );
 
 static unsigned char sysex_buf[SYSEX_BUF_SIZE];
 static VFB_DATA *evfb=NULL;
+
 static int rpn_adr[VFB_MAX_CHANNEL_NUMBER];
 static int nrpn_adr[VFB_MAX_CHANNEL_NUMBER];
 
@@ -146,15 +147,17 @@ void encode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length)
 }
 
 // Packet type A has 8-bit data, split up into two 4-bit values (MIDI data can not use the MSB of each byte)
-uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t* pLength)
+uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t length, size_t* pLength)
 {
 	uint8_t c = 0;
-	size_t length;
 	size_t i;
 
 	// Decode length
-	length = *pSrc++ << 7;
-	length |= *pSrc++ & 0x7F;
+	*pLength = (*pSrc++ & 0x1F) << 7;
+	*pLength |= *pSrc++ & 0x7E;
+
+	if (length == 0)
+		length = *pLength;
 
 	// Decode all bytes
 	for (i = 0; i < length; i += 2)
@@ -180,15 +183,17 @@ uint8_t decode_packet_type_A(uint8_t* pDest, uint8_t* pSrc, size_t* pLength)
 }
 
 // Packet type B has 7-bit data
-uint8_t decode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t* pLength)
+uint8_t decode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t length, size_t* pLength)
 {
 	uint8_t c = 0;
-	size_t length;
 	size_t i;
 
 	// Decode length
-	length = *pSrc++ >> 7;
-	length |= *pSrc++ & 0x7F;
+	*pLength = (*pSrc++ & 0x1F) << 7;
+	*pLength |= *pSrc++ & 0x7F;
+
+	if (length == 0)
+		length = *pLength;
 
 	// Decode all bytes
 	for (i = 0; i < length; i++)
@@ -199,9 +204,6 @@ uint8_t decode_packet_type_B(uint8_t* pDest, uint8_t* pSrc, size_t* pLength)
 		c += d;
 		*pDest++ = d;
 	}
-
-	// Calculate length
-	*pLength = length;
 
 	// Compare checksum
 	c = (-c) & 0x7F;
@@ -726,7 +728,6 @@ void param_change_instrument(MidiEvent* ev)
 	if (p & 0x40)
 		d |= ev->ex_buf[6] << 4;
 
-
 	sprintf(buf, "FB01: Parameter Change, s: %u, i: %u, p: %02X, d: %02X \n", s, i, p, d);
 	OutputDebugString(buf);
 
@@ -747,14 +748,15 @@ void param_change_instrument(MidiEvent* ev)
 		break;
 	case 0x04:
 		evfb->active_config.instruments[i].voice_bank = d;
+
+		// Update the YM2164 registers for this instrument
+		update_voice(i);
 		break;
 	case 0x05:
 		evfb->active_config.instruments[i].voice = d;
-		// TODO: This is just a hack!
-		for (j = 0; j < 8; j++)
-		{
-			ym2151_set_voice(j, d);
-		}
+
+		// Update the YM2164 registers for this instrument
+		update_voice(i);
 		break;
 	}
 }
@@ -975,7 +977,7 @@ void node_message(MidiEvent* ev)
 
 		// Header
 		// Data encoded in type A messages
-		checkOk &= decode_packet_type_A(pData, pSrc, &len);
+		checkOk &= decode_packet_type_A(pData, pSrc, 32, &len);
 
 		pSrc += len + 3;
 		pData += len >> 1;
@@ -995,7 +997,7 @@ void node_message(MidiEvent* ev)
 		// Parse all 48 voices
 		for (i = 0; i < 48; i++)
 		{
-			checkOk &= decode_packet_type_A(pData, pSrc, &len);
+			checkOk &= decode_packet_type_A(pData, pSrc, 64, &len);
 
 			pSrc += len + 3;
 			pData += len >> 1;
